@@ -4,3 +4,10 @@ __pycache__
 pytest-cache-files-*
 *.pyc
 .env
+
+src/*.py
+src/**/*.py
+scripts/
+tests/
+requirements.txt
+pytest.ini
