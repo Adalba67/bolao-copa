@@ -2,6 +2,8 @@
 
 Aplicacao web simples para administrar um bolao da Copa do Mundo.
 
+Repositorio sincronizado para teste de commit e push.
+
 O projeto roda como site estatico no navegador, usa CSVs locais como base inicial e tem regras de pontuacao tambem implementadas em Python para validacao e testes.
 
 ## Funcionalidades
