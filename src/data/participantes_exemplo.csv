@@ -1,0 +1,11 @@
+id_participante,nome,apelido,data_cadastro,ativo
+1,Ana Silva,Ana,2026-01-01,True
+2,Bruno Costa,Bruno,2026-01-01,True
+3,Camila Souza,Cami,2026-01-02,True
+4,Diego Lima,Diego,2026-01-02,True
+5,Elisa Rocha,Elisa,2026-01-03,True
+6,Felipe Alves,Felipe,2026-01-03,True
+7,Gabi Martins,Gabi,2026-01-04,True
+8,Hugo Freitas,Hugo,2026-01-04,True
+9,Iris Nunes,Iris,2026-01-05,True
+10,Joao Pereira,Joao,2026-01-05,True

@@ -1,0 +1,12 @@
+{
+  "name": "bolao-copa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aplicacao web estatica para administrar um bolao da Copa.",
+  "scripts": {
+    "start": "python -m http.server 8001",
+    "test": "python -m pytest",
+    "check": "node --check app.js",
+    "deploy": "vercel --prod"
+  }
+}

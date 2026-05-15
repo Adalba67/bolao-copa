@@ -1,0 +1,73 @@
+id_jogo,data_hora,fase,grupo,time_casa,time_fora,placar_real_casa,placar_real_fora,status_jogo,eh_jogo_do_brasil
+1,2026-06-11 16:00,Grupos,A,Mexico,South Africa,0.0,2.0,finalizado,False
+2,2026-06-11 19:00,Grupos,A,Korea Republic,Czechia,2.0,3.0,finalizado,False
+3,2026-06-12 16:00,Grupos,B,Canada,Bosnia and Herzegovina,0.0,1.0,finalizado,False
+4,2026-06-12 19:00,Grupos,D,USA,Paraguay,2.0,2.0,finalizado,False
+5,2026-06-13 13:00,Grupos,C,Haiti,Scotland,3.0,2.0,finalizado,False
+6,2026-06-13 16:00,Grupos,D,Australia,Turkiye,2.0,3.0,finalizado,False
+7,2026-06-13 19:00,Grupos,C,Brazil,Marrocos,3.0,2.0,finalizado,True
+8,2026-06-13 22:00,Grupos,B,Qatar,Switzerland,1.0,2.0,finalizado,False
+9,2026-06-14 13:00,Grupos,E,Cote d'Ivoire,Ecuador,0.0,3.0,finalizado,False
+10,2026-06-14 16:00,Grupos,E,Germany,Curacao,1.0,3.0,finalizado,False
+11,2026-06-14 19:00,Grupos,F,Netherlands,Japan,2.0,2.0,finalizado,False
+12,2026-06-14 22:00,Grupos,F,Sweden,Tunisia,1.0,1.0,finalizado,False
+13,2026-06-15 13:00,Grupos,H,Saudi Arabia,Uruguay,5.0,4.0,finalizado,False
+14,2026-06-15 16:00,Grupos,H,Spain,Cabo Verde,3.0,5.0,finalizado,False
+15,2026-06-15 19:00,Grupos,G,IR Iran,New Zealand,2.0,0.0,finalizado,False
+16,2026-06-15 22:00,Grupos,G,Belgium,Egypt,1.0,2.0,finalizado,False
+17,2026-06-16 13:00,Grupos,I,France,Senegal,1.0,1.0,finalizado,False
+18,2026-06-16 16:00,Grupos,I,Iraq,Norway,3.0,2.0,finalizado,False
+19,2026-06-16 19:00,Grupos,J,Argentina,Algeria,2.0,0.0,finalizado,False
+20,2026-06-16 22:00,Grupos,J,Austria,Jordan,2.0,1.0,finalizado,False
+21,2026-06-17 13:00,Grupos,L,Ghana,Panama,1.0,1.0,finalizado,False
+22,2026-06-17 16:00,Grupos,L,England,Croatia,2.0,2.0,finalizado,False
+23,2026-06-17 19:00,Grupos,K,Portugal,Congo DR,0.0,2.0,finalizado,False
+24,2026-06-17 22:00,Grupos,K,Uzbekistan,Colombia,3.0,2.0,finalizado,False
+25,2026-06-18 13:00,Grupos,A,Czechia,South Africa,2.0,4.0,finalizado,False
+26,2026-06-18 16:00,Grupos,B,Switzerland,Bosnia and Herzegovina,1.0,1.0,finalizado,False
+27,2026-06-18 19:00,Grupos,B,Canada,Qatar,4.0,1.0,finalizado,False
+28,2026-06-18 22:00,Grupos,A,Mexico,Korea Republic,2.0,0.0,finalizado,False
+29,2026-06-19 13:00,Grupos,C,Brazil,Haiti,1.0,0.0,finalizado,True
+30,2026-06-19 16:00,Grupos,C,Scotland,Marrocos,0.0,2.0,finalizado,False
+31,2026-06-19 19:00,Grupos,D,Turkiye,Paraguay,3.0,0.0,finalizado,False
+32,2026-06-19 22:00,Grupos,D,USA,Australia,2.0,1.0,finalizado,False
+33,2026-06-20 13:00,Grupos,E,Germany,Cote d'Ivoire,2.0,1.0,finalizado,False
+34,2026-06-20 16:00,Grupos,E,Ecuador,Curacao,3.0,2.0,finalizado,False
+35,2026-06-20 19:00,Grupos,F,Netherlands,Sweden,1.0,1.0,finalizado,False
+36,2026-06-20 22:00,Grupos,F,Tunisia,Japan,4.0,5.0,finalizado,False
+37,2026-06-21 13:00,Grupos,H,Uruguay,Cabo Verde,2.0,2.0,finalizado,False
+38,2026-06-21 16:00,Grupos,H,Spain,Saudi Arabia,2.0,1.0,finalizado,False
+39,2026-06-21 19:00,Grupos,G,Belgium,IR Iran,3.0,2.0,finalizado,False
+40,2026-06-21 22:00,Grupos,G,New Zealand,Egypt,1.0,3.0,finalizado,False
+41,2026-06-22 13:00,Grupos,I,Norway,Senegal,1.0,1.0,finalizado,False
+42,2026-06-22 16:00,Grupos,I,France,Iraq,1.0,0.0,finalizado,False
+43,2026-06-22 19:00,Grupos,J,Argentina,Austria,2.0,2.0,finalizado,False
+44,2026-06-22 22:00,Grupos,J,Jordan,Algeria,1.0,2.0,finalizado,False
+45,2026-06-23 13:00,Grupos,L,England,Ghana,2.0,4.0,finalizado,False
+46,2026-06-23 16:00,Grupos,L,Panama,Croatia,1.0,2.0,finalizado,False
+47,2026-06-23 19:00,Grupos,K,Portugal,Uzbekistan,2.0,3.0,finalizado,False
+48,2026-06-23 22:00,Grupos,K,Colombia,Congo DR,3.0,2.0,finalizado,False
+49,2026-06-24 13:00,Grupos,C,Scotland,Brazil,4.0,3.0,finalizado,True
+50,2026-06-24 13:00,Grupos,C,Marrocos,Haiti,1.0,4.0,finalizado,False
+51,2026-06-24 16:00,Grupos,B,Switzerland,Canada,0.0,2.0,finalizado,False
+52,2026-06-24 16:00,Grupos,B,Bosnia and Herzegovina,Qatar,3.0,2.0,finalizado,False
+53,2026-06-24 19:00,Grupos,A,Czechia,Mexico,1.0,4.0,finalizado,False
+54,2026-06-24 19:00,Grupos,A,South Africa,Korea Republic,4.0,3.0,finalizado,False
+55,2026-06-25 13:00,Grupos,E,Curacao,Cote d'Ivoire,1.0,0.0,finalizado,False
+56,2026-06-25 13:00,Grupos,E,Ecuador,Germany,1.0,2.0,finalizado,False
+57,2026-06-25 16:00,Grupos,F,Japan,Sweden,0.0,3.0,finalizado,False
+58,2026-06-25 16:00,Grupos,F,Tunisia,Netherlands,1.0,1.0,finalizado,False
+59,2026-06-25 19:00,Grupos,D,Turkiye,USA,0.0,0.0,finalizado,False
+60,2026-06-25 19:00,Grupos,D,Paraguay,Australia,2.0,4.0,finalizado,False
+61,2026-06-26 13:00,Grupos,I,Norway,France,0.0,3.0,finalizado,False
+62,2026-06-26 13:00,Grupos,I,Senegal,Iraq,1.0,2.0,finalizado,False
+63,2026-06-26 16:00,Grupos,G,Egypt,IR Iran,3.0,4.0,finalizado,False
+64,2026-06-26 16:00,Grupos,G,New Zealand,Belgium,2.0,2.0,finalizado,False
+65,2026-06-26 19:00,Grupos,H,Cabo Verde,Saudi Arabia,0.0,1.0,finalizado,False
+66,2026-06-26 19:00,Grupos,H,Uruguay,Spain,2.0,3.0,finalizado,False
+67,2026-06-27 13:00,Grupos,L,Panama,England,4.0,2.0,finalizado,False
+68,2026-06-27 13:00,Grupos,L,Croatia,Ghana,2.0,0.0,finalizado,False
+69,2026-06-27 16:00,Grupos,J,Algeria,Austria,1.0,2.0,finalizado,False
+70,2026-06-27 16:00,Grupos,J,Jordan,Argentina,4.0,3.0,finalizado,False
+71,2026-06-27 19:00,Grupos,K,Colombia,Portugal,2.0,0.0,finalizado,False
+72,2026-06-27 19:00,Grupos,K,Congo DR,Uzbekistan,2.0,4.0,finalizado,False

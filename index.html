@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bolao Copa</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main id="loginView" class="login-view">
+      <div class="login-layout single-login">
+        <form id="loginForm" class="login-card">
+          <span class="eyebrow">Bolao Copa</span>
+          <h1>Acesso</h1>
+          <label>
+            Login
+            <input id="username" autocomplete="username" required />
+          </label>
+          <label>
+            Senha
+            <input id="password" type="password" autocomplete="current-password" />
+          </label>
+          <button id="showRegisterButton" class="small-link-button" type="button">Criar conta</button>
+          <button type="submit">Entrar</button>
+          <p id="loginError" class="error" aria-live="polite"></p>
+        </form>
+
+        <form id="registerForm" class="login-card hidden">
+          <span class="eyebrow">Participante</span>
+          <h1>Cadastro</h1>
+          <label>
+            Nome
+            <input id="registerFirstName" autocomplete="given-name" required />
+          </label>
+          <label>
+            Sobrenome
+            <input id="registerLastName" autocomplete="family-name" required />
+          </label>
+          <label>
+            Telefone com DDD
+            <input id="registerPhone" inputmode="tel" autocomplete="tel" required />
+          </label>
+          <label>
+            Senha
+            <input id="registerPassword" type="password" autocomplete="new-password" required />
+          </label>
+          <label>
+            Confirmar senha
+            <input id="registerPasswordConfirm" type="password" autocomplete="new-password" required />
+          </label>
+          <button type="submit">Cadastrar participante</button>
+          <button id="backToLoginButton" class="small-link-button" type="button">Voltar ao login</button>
+          <p id="registerFeedback" class="feedback" aria-live="polite"></p>
+        </form>
+
+        <form id="changePasswordForm" class="login-card hidden">
+          <span class="eyebrow">Participante</span>
+          <h1>Nova senha</h1>
+          <p>Crie uma nova senha para continuar.</p>
+          <label>
+            Nova senha
+            <input id="newParticipantPassword" type="password" autocomplete="new-password" required />
+          </label>
+          <label>
+            Confirmar nova senha
+            <input id="newParticipantPasswordConfirm" type="password" autocomplete="new-password" required />
+          </label>
+          <button type="submit">Salvar nova senha</button>
+          <p id="changePasswordFeedback" class="feedback" aria-live="polite"></p>
+        </form>
+      </div>
+    </main>
+
+    <main id="appView" class="app-view hidden">
+      <aside class="sidebar">
+        <div class="brand">
+          <strong>Bolao Copa</strong>
+          <span id="companyMenuName">Empresa não configurada</span>
+        </div>
+        <nav>
+          <button class="nav-item active" data-section="dashboard">Dashboard</button>
+          <button class="nav-item admin-only" data-section="admConfig">ADM</button>
+          <button class="nav-item" data-section="jogos">Jogos</button>
+          <button class="nav-item" data-section="regras">Regras</button>
+          <button class="nav-item participant-only" data-section="palpitesLinha">Meus Palpites</button>
+          <button class="nav-item" data-section="palpites">Palpites Gerais</button>
+          <button class="nav-item admin-only" data-section="simulador">Simulador</button>
+          <button class="nav-item" data-section="ranking">Ranking</button>
+          <button class="nav-item participant-only" data-section="meuDesempenho">Minha Pontuação</button>
+          <button class="nav-item admin-only" data-section="participantesPlanilha">Participantes</button>
+          <button class="nav-item admin-only" data-section="lancamento">Resultados</button>
+          <button id="logoutButton" class="nav-item logout" type="button">Sair</button>
+        </nav>
+      </aside>
+
+      <section class="content">
+        <header class="topbar">
+          <div class="logo-spot top-logo" aria-label="Logo Bolao da Copa">
+            <img id="companyLogoImage" class="company-logo hidden" alt="Logotipo da empresa" />
+            <div class="logo-text">
+              <div class="logo-mark">BOLAO DA COPA</div>
+              <span id="companyTopName">Empresa não configurada</span>
+            </div>
+          </div>
+          <div id="userChip" class="user-chip">ADM</div>
+        </header>
+
+        <section id="dashboard" class="section active">
+          <div class="metrics">
+            <article>
+              <span>Jogos</span>
+              <strong id="totalJogos">0</strong>
+            </article>
+            <article>
+              <span>Grupos</span>
+              <strong id="totalGrupos">0</strong>
+            </article>
+            <article>
+              <span>Selecoes</span>
+              <strong id="totalSelecoes">0</strong>
+            </article>
+            <article>
+              <span>Participantes simulados</span>
+              <strong id="totalPalpites">0</strong>
+            </article>
+          </div>
+          <div class="panel">
+            <h3>Resumo por grupo</h3>
+            <div id="groupsGrid" class="groups-grid"></div>
+          </div>
+        </section>
+
+        <section id="admConfig" class="section">
+          <div class="panel form-panel">
+            <h3>Cadastro ADM da empresa</h3>
+            <p>Cadastre uma única identificação para esta empresa. Os participantes, palpites e ranking ficam separados por empresa.</p>
+            <div class="final-grid">
+              <label>
+                Tipo de nome
+                <select id="companyNameType">
+                  <option value="Pessoa física">Pessoa física</option>
+                  <option value="Pessoa jurídica">Pessoa jurídica</option>
+                  <option value="Nome fantasia">Nome fantasia</option>
+                </select>
+              </label>
+              <label>
+                Nome da empresa ou responsável
+                <input id="companyName" placeholder="Ex: Bolão da Firma" />
+              </label>
+              <label>
+                Logotipo da empresa (.jpg)
+                <input id="companyLogoFile" type="file" accept=".jpg,.jpeg,.jpj,image/jpeg" />
+              </label>
+            </div>
+            <div class="actions-row">
+              <button id="saveCompanyButton" type="button">Salvar ADM</button>
+            </div>
+            <p id="companyFeedback" class="feedback" aria-live="polite"></p>
+          </div>
+        </section>
+
+        <section id="jogos" class="section">
+          <div class="section-head">
+            <select id="groupFilter" aria-label="Filtrar grupo"></select>
+          </div>
+          <div class="panel table-panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Jogo</th>
+                  <th>Data</th>
+                  <th>Grupo</th>
+                  <th>Selecoes</th>
+                  <th>Status</th>
+                  <th>Resultado</th>
+                </tr>
+              </thead>
+              <tbody id="gamesTable"></tbody>
+            </table>
+          </div>
+          <div class="pager">
+            <button id="prevGamesPage" type="button" aria-label="Página anterior">←</button>
+            <span id="gamesPageInfo">Página 1</span>
+            <button id="nextGamesPage" type="button" aria-label="Próxima página">→</button>
+          </div>
+        </section>
+
+        <section id="regras" class="section">
+          <div class="panel rules-panel">
+            <h3>Regras de pontuação</h3>
+            <div class="rules-grid">
+              <article>
+                <strong>Placar exato</strong>
+                <p>Acertou exatamente o resultado do jogo, por exemplo palpite 2 x 1 e resultado oficial 2 x 1.</p>
+                <span>5 pontos</span>
+              </article>
+              <article>
+                <strong>Vencedor ou empate</strong>
+                <p>Acertou quem venceu, ou acertou que o jogo terminou empatado, mesmo com outro placar.</p>
+                <span>3 pontos</span>
+              </article>
+              <article>
+                <strong>Jogo do Brasil</strong>
+                <p>Nos jogos do Brasil, a pontuação vale mais.</p>
+                <span>10 pontos no placar exato, 5 pontos no vencedor ou empate</span>
+              </article>
+              <article>
+                <strong>Fase final</strong>
+                <p>Cada seleção acertada entre os quatro primeiros soma pontos. Se acertar a posição exata, ganha bônus.</p>
+                <span>10 pontos por seleção + 5 de bônus pela posição correta</span>
+              </article>
+              <article>
+                <strong>Prazo para palpites</strong>
+                <p>O participante pode alterar qualquer palpite até o dia 10/06/2026.</p>
+                <span>Depois do início da Copa, fica bloqueado</span>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section id="palpites" class="section">
+          <div class="section-head">
+            <div>
+              <h3>Palpites com campo de pontuacao</h3>
+            </div>
+            <div class="filters-row">
+              <select id="predictionParticipantFilter" aria-label="Filtrar participante"></select>
+              <select id="predictionGameFilter" aria-label="Filtrar jogo"></select>
+              <select id="predictionOrderFilter" aria-label="Ordenar palpites">
+                <option value="gameDate">Por dia de jogo</option>
+                <option value="participant">Por participante</option>
+              </select>
+            </div>
+          </div>
+          <div class="panel table-panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Jogo</th>
+                  <th>Participante</th>
+                  <th>Data</th>
+                  <th>Partida</th>
+                  <th>Palpite</th>
+                  <th>Resultado oficial</th>
+                  <th>Pontos</th>
+                  <th>Criterio</th>
+                </tr>
+              </thead>
+              <tbody id="predictionsTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="simulador" class="section">
+          <div class="section-head">
+            <div>
+              <h3>Simulacao de resultados</h3>
+              <p>Gera placares ficticios no navegador para testar a pontuacao antes da Copa comecar.</p>
+            </div>
+            <button id="simulateButton" type="button">Simular resultados</button>
+          </div>
+          <div class="panel table-panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Posição</th>
+                  <th>Participante</th>
+                  <th>Pontos jogos</th>
+                  <th>Pontos fase final</th>
+                  <th>Total</th>
+                  <th>Observacao</th>
+                </tr>
+              </thead>
+              <tbody id="rankingTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="ranking" class="section">
+          <div class="section-head">
+            <div>
+              <h3>Ranking e Top 10</h3>
+              <p>Filtre a pontuação por rodada ou grupo para comparar os participantes.</p>
+            </div>
+            <div class="filters-row">
+              <select id="rankingRoundFilter" aria-label="Filtrar rodada"></select>
+              <select id="rankingGroupFilter" aria-label="Filtrar grupo"></select>
+            </div>
+          </div>
+          <div class="panel">
+            <h3>Top 10 colocados</h3>
+            <div id="rankingChart" class="bar-chart"></div>
+          </div>
+          <div class="panel table-panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Posição</th>
+                  <th>Participante</th>
+                  <th>Pontos jogos</th>
+                  <th>Pontos fase final</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody id="rankingFullTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="meuDesempenho" class="section">
+          <div class="panel">
+            <h3>Minha pontuação</h3>
+            <div id="myScoreCard" class="score-card"></div>
+          </div>
+        </section>
+
+        <section id="participantesPlanilha" class="section">
+          <div class="panel table-panel">
+            <div class="table-toolbar">
+              <h3>Planilha de participantes</h3>
+              <button id="exportParticipantsButton" type="button">Exportar planilha</button>
+            </div>
+            <p id="participantsSheetFeedback" class="feedback" aria-live="polite"></p>
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Nome</th>
+                  <th>Sobrenome</th>
+                  <th>Telefone</th>
+                  <th>Login</th>
+                  <th>Cadastro</th>
+                  <th>Ação</th>
+                </tr>
+              </thead>
+              <tbody id="participantsSheetTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="lancamento" class="section">
+          <div class="section-head">
+            <div>
+              <h3>Resultados da simulação</h3>
+              <p>Digite 10 resultados para entrar no cálculo final da simulação.</p>
+            </div>
+            <button id="manualCalculateButton" type="button">Aplicar resultados</button>
+          </div>
+
+          <div class="panel form-panel">
+            <div class="api-panel">
+              <label>
+                Chave da API Ball Don't Lie
+                <input id="ballApiKey" type="password" placeholder="Cole sua API key" />
+              </label>
+              <button id="fetchBallResultsButton" type="button">Buscar resultados Ball Don't Lie</button>
+            </div>
+            <label class="check-row">
+              <input id="autoBallResults" type="checkbox" checked />
+              Buscar automaticamente quando a Copa começar
+            </label>
+
+            <h3>10 resultados dos jogos</h3>
+            <div id="manualGamesGrid" class="manual-grid"></div>
+
+            <h3>Resultado final</h3>
+            <div class="final-grid">
+              <label>
+                Campeão real
+                <input id="realFinal1" value="Brasil" />
+              </label>
+              <label>
+                Vice real
+                <input id="realFinal2" value="França" />
+              </label>
+              <label>
+                Terceiro real
+                <input id="realFinal3" value="Argentina" />
+              </label>
+              <label>
+                Quarto real
+                <input id="realFinal4" value="Inglaterra" />
+              </label>
+            </div>
+            <p id="manualFeedback" class="feedback" aria-live="polite"></p>
+          </div>
+        </section>
+
+        <section id="palpitesLinha" class="section">
+          <div class="section-head">
+            <div>
+              <h3>Meus palpites</h3>
+              <p>Atenção ! Poderá ser alterado qualquer palpite até o dia 10/06/2026.</p>
+            </div>
+            <button id="linePredictionsButton" type="button">Salvar meus palpites</button>
+          </div>
+
+          <div class="panel form-panel">
+            <label>
+              Nome do participante
+              <input id="lineParticipantName" list="lineParticipantsList" placeholder="Ex: Maria" />
+              <datalist id="lineParticipantsList"></datalist>
+            </label>
+
+            <div class="line-predictions-wrap">
+              <table class="line-predictions-table">
+                <thead>
+                  <tr>
+                    <th>Jogo</th>
+                    <th>Data</th>
+                    <th>Grupo</th>
+                    <th>Selecoes</th>
+                    <th>Palpite</th>
+                    <th>Resultado oficial</th>
+                    <th>Pontos</th>
+                  </tr>
+                </thead>
+                <tbody id="linePredictionsTable"></tbody>
+              </table>
+            </div>
+            <div class="pager">
+              <button id="prevPredictionsPage" type="button" aria-label="Página anterior">←</button>
+              <span id="predictionsPageInfo">Página 1</span>
+              <button id="nextPredictionsPage" type="button" aria-label="Próxima página">→</button>
+            </div>
+
+            <h3>Palpite da fase final</h3>
+            <div class="final-grid">
+              <label>
+                Campeão
+                <select id="linePredFinal1"></select>
+              </label>
+              <label>
+                Vice Campeão
+                <select id="linePredFinal2"></select>
+              </label>
+              <label>
+                Terceiro Lugar
+                <select id="linePredFinal3"></select>
+              </label>
+              <label>
+                Quarto Lugar
+                <select id="linePredFinal4"></select>
+              </label>
+            </div>
+            <p id="linePredictionsFeedback" class="feedback" aria-live="polite"></p>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

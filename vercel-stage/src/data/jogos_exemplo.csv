@@ -1,0 +1,73 @@
+id_jogo,data_hora,fase,grupo,time_casa,time_fora,placar_real_casa,placar_real_fora,status_jogo,eh_jogo_do_brasil
+1,2026-06-11 16:00,Grupos,A,Mexico,South Africa,,,agendado,False
+2,2026-06-11 19:00,Grupos,A,Korea Republic,Czechia,,,agendado,False
+3,2026-06-12 16:00,Grupos,B,Canada,Bosnia and Herzegovina,,,agendado,False
+4,2026-06-12 19:00,Grupos,D,USA,Paraguay,,,agendado,False
+5,2026-06-13 13:00,Grupos,C,Haiti,Scotland,,,agendado,False
+6,2026-06-13 16:00,Grupos,D,Australia,Turkiye,,,agendado,False
+7,2026-06-13 19:00,Grupos,C,Brazil,Marrocos,,,agendado,True
+8,2026-06-13 22:00,Grupos,B,Qatar,Switzerland,,,agendado,False
+9,2026-06-14 13:00,Grupos,E,Cote d'Ivoire,Ecuador,,,agendado,False
+10,2026-06-14 16:00,Grupos,E,Germany,Curacao,,,agendado,False
+11,2026-06-14 19:00,Grupos,F,Netherlands,Japan,,,agendado,False
+12,2026-06-14 22:00,Grupos,F,Sweden,Tunisia,,,agendado,False
+13,2026-06-15 13:00,Grupos,H,Saudi Arabia,Uruguay,,,agendado,False
+14,2026-06-15 16:00,Grupos,H,Spain,Cabo Verde,,,agendado,False
+15,2026-06-15 19:00,Grupos,G,IR Iran,New Zealand,,,agendado,False
+16,2026-06-15 22:00,Grupos,G,Belgium,Egypt,,,agendado,False
+17,2026-06-16 13:00,Grupos,I,France,Senegal,,,agendado,False
+18,2026-06-16 16:00,Grupos,I,Iraq,Norway,,,agendado,False
+19,2026-06-16 19:00,Grupos,J,Argentina,Algeria,,,agendado,False
+20,2026-06-16 22:00,Grupos,J,Austria,Jordan,,,agendado,False
+21,2026-06-17 13:00,Grupos,L,Ghana,Panama,,,agendado,False
+22,2026-06-17 16:00,Grupos,L,England,Croatia,,,agendado,False
+23,2026-06-17 19:00,Grupos,K,Portugal,Congo DR,,,agendado,False
+24,2026-06-17 22:00,Grupos,K,Uzbekistan,Colombia,,,agendado,False
+25,2026-06-18 13:00,Grupos,A,Czechia,South Africa,,,agendado,False
+26,2026-06-18 16:00,Grupos,B,Switzerland,Bosnia and Herzegovina,,,agendado,False
+27,2026-06-18 19:00,Grupos,B,Canada,Qatar,,,agendado,False
+28,2026-06-18 22:00,Grupos,A,Mexico,Korea Republic,,,agendado,False
+29,2026-06-19 13:00,Grupos,C,Brazil,Haiti,,,agendado,True
+30,2026-06-19 16:00,Grupos,C,Scotland,Marrocos,,,agendado,False
+31,2026-06-19 19:00,Grupos,D,Turkiye,Paraguay,,,agendado,False
+32,2026-06-19 22:00,Grupos,D,USA,Australia,,,agendado,False
+33,2026-06-20 13:00,Grupos,E,Germany,Cote d'Ivoire,,,agendado,False
+34,2026-06-20 16:00,Grupos,E,Ecuador,Curacao,,,agendado,False
+35,2026-06-20 19:00,Grupos,F,Netherlands,Sweden,,,agendado,False
+36,2026-06-20 22:00,Grupos,F,Tunisia,Japan,,,agendado,False
+37,2026-06-21 13:00,Grupos,H,Uruguay,Cabo Verde,,,agendado,False
+38,2026-06-21 16:00,Grupos,H,Spain,Saudi Arabia,,,agendado,False
+39,2026-06-21 19:00,Grupos,G,Belgium,IR Iran,,,agendado,False
+40,2026-06-21 22:00,Grupos,G,New Zealand,Egypt,,,agendado,False
+41,2026-06-22 13:00,Grupos,I,Norway,Senegal,,,agendado,False
+42,2026-06-22 16:00,Grupos,I,France,Iraq,,,agendado,False
+43,2026-06-22 19:00,Grupos,J,Argentina,Austria,,,agendado,False
+44,2026-06-22 22:00,Grupos,J,Jordan,Algeria,,,agendado,False
+45,2026-06-23 13:00,Grupos,L,England,Ghana,,,agendado,False
+46,2026-06-23 16:00,Grupos,L,Panama,Croatia,,,agendado,False
+47,2026-06-23 19:00,Grupos,K,Portugal,Uzbekistan,,,agendado,False
+48,2026-06-23 22:00,Grupos,K,Colombia,Congo DR,,,agendado,False
+49,2026-06-24 13:00,Grupos,C,Scotland,Brazil,,,agendado,True
+50,2026-06-24 13:00,Grupos,C,Marrocos,Haiti,,,agendado,False
+51,2026-06-24 16:00,Grupos,B,Switzerland,Canada,,,agendado,False
+52,2026-06-24 16:00,Grupos,B,Bosnia and Herzegovina,Qatar,,,agendado,False
+53,2026-06-24 19:00,Grupos,A,Czechia,Mexico,,,agendado,False
+54,2026-06-24 19:00,Grupos,A,South Africa,Korea Republic,,,agendado,False
+55,2026-06-25 13:00,Grupos,E,Curacao,Cote d'Ivoire,,,agendado,False
+56,2026-06-25 13:00,Grupos,E,Ecuador,Germany,,,agendado,False
+57,2026-06-25 16:00,Grupos,F,Japan,Sweden,,,agendado,False
+58,2026-06-25 16:00,Grupos,F,Tunisia,Netherlands,,,agendado,False
+59,2026-06-25 19:00,Grupos,D,Turkiye,USA,,,agendado,False
+60,2026-06-25 19:00,Grupos,D,Paraguay,Australia,,,agendado,False
+61,2026-06-26 13:00,Grupos,I,Norway,France,,,agendado,False
+62,2026-06-26 13:00,Grupos,I,Senegal,Iraq,,,agendado,False
+63,2026-06-26 16:00,Grupos,G,Egypt,IR Iran,,,agendado,False
+64,2026-06-26 16:00,Grupos,G,New Zealand,Belgium,,,agendado,False
+65,2026-06-26 19:00,Grupos,H,Cabo Verde,Saudi Arabia,,,agendado,False
+66,2026-06-26 19:00,Grupos,H,Uruguay,Spain,,,agendado,False
+67,2026-06-27 13:00,Grupos,L,Panama,England,,,agendado,False
+68,2026-06-27 13:00,Grupos,L,Croatia,Ghana,,,agendado,False
+69,2026-06-27 16:00,Grupos,J,Algeria,Austria,,,agendado,False
+70,2026-06-27 16:00,Grupos,J,Jordan,Argentina,,,agendado,False
+71,2026-06-27 19:00,Grupos,K,Colombia,Portugal,,,agendado,False
+72,2026-06-27 19:00,Grupos,K,Congo DR,Uzbekistan,,,agendado,False

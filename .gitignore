@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+pytest-cache-files-*/
+
+node_modules/
+dist/
+build/
+
+.env
+.env.*
+!.env.example
+
+.vscode/
