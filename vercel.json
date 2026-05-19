@@ -36,8 +36,8 @@
       "dest": "/index.html"
     },
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
+      "src": "/api/config",
+      "dest": "/api/config.js"
     },
     {
       "src": "/(.*)",
