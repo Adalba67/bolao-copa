@@ -1,4 +1,5 @@
 ﻿import {
+  getCurrentCompany,
   loadBolaoData,
   saveAdminProfile,
   saveMatchResults,
@@ -285,6 +286,23 @@ function loadCompanyProfile() {
   return companyProfile;
 }
 
+async function syncCurrentCompany() {
+  const company = await getCurrentCompany();
+  companyProfile = {
+    id: company.id,
+    name_type: company.name_type,
+    name: company.name,
+    sheet_name: company.sheet_name,
+    spreadsheet_id: company.spreadsheet_id,
+    googleSheetId: company.googleSheetId,
+    webhook_url: company.webhook_url,
+    logo_data_url: company.logo_data_url,
+    updated_at: company.updated_at,
+  };
+  updateCompanyLabels();
+  return companyProfile;
+}
+
 function companyDisplayName() {
   return companyProfile?.name || "Empresa não configurada";
 }
@@ -523,10 +541,18 @@ function setupAuth() {
       return;
     }
 
+    let currentCompany = null;
+    try {
+      currentCompany = await syncCurrentCompany();
+    } catch (error) {
+      byId("registerFeedback").textContent = error.message;
+      return;
+    }
+
     const participant = {
       id_participante: nextParticipantId(),
-      company_id: activeCompanyId(),
-      company_name: companyDisplayName(),
+      company_id: currentCompany.id,
+      company_name: currentCompany.name,
       nome: firstName,
       sobrenome: lastName,
       telefone: phone,
@@ -1633,6 +1659,7 @@ async function boot() {
   hydrateOfficialResults();
 
   loadCompanyProfile();
+  await syncCurrentCompany();
   mergeStoredData();
   setupAuth();
   setupNavigation();

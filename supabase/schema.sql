@@ -266,6 +266,41 @@ as $$
   limit 1;
 $$;
 
+create or replace function public.get_current_company()
+returns table (
+  id uuid,
+  company_id text,
+  login text,
+  name_type text,
+  name text,
+  sheet_name text,
+  spreadsheet_id text,
+  google_sheet_id text,
+  webhook_url text,
+  logo_data_url text,
+  updated_at timestamptz
+)
+language sql
+security definer
+set search_path = public, extensions
+as $$
+  select
+    a.id,
+    a.company_id,
+    a.login,
+    a.name_type,
+    a.name,
+    a.sheet_name,
+    a.spreadsheet_id,
+    a.google_sheet_id,
+    a.webhook_url,
+    a.logo_data_url,
+    a.updated_at
+  from public.admins a
+  where a.login = 'adm'
+  limit 1;
+$$;
+
 drop function if exists public.save_admin_profile(text, text, text, text, text, text, text, text);
 
 create or replace function public.save_admin_profile(
@@ -621,6 +656,7 @@ grant select on public.ranking to anon, authenticated;
 revoke select on public.admins from anon;
 grant select, insert, update on public.admins to authenticated;
 grant execute on function public.authenticate_admin(text, text) to anon, authenticated;
+grant execute on function public.get_current_company() to anon, authenticated;
 grant execute on function public.save_admin_profile(text, text, text, text, text, text, text, text) to anon, authenticated;
 grant update on public.jogos to authenticated;
 grant update on public.jogos to anon;

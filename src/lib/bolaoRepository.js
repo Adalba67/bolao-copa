@@ -79,14 +79,39 @@ function finalPredictionPayload(prediction) {
   };
 }
 
+function normalizeCompany(admin) {
+  return {
+    id: admin.company_id,
+    name_type: admin.name_type,
+    name: admin.name,
+    sheet_name: admin.sheet_name,
+    spreadsheet_id: admin.spreadsheet_id,
+    googleSheetId: admin.google_sheet_id,
+    webhook_url: admin.webhook_url,
+    logo_data_url: admin.logo_data_url,
+    updated_at: admin.updated_at,
+  };
+}
+
+export async function getCurrentCompany() {
+  const client = await getSupabaseClient();
+  const { data, error } = await client.rpc("get_current_company");
+  if (error) throw new Error(formatSupabaseError(error, "Falha ao carregar empresa atual."));
+
+  const company = Array.isArray(data) ? data[0] : data;
+  if (!company) throw new Error("Empresa atual nao encontrada no Supabase.");
+  return normalizeCompany(company);
+}
+
 export async function loadBolaoData() {
   const client = await getSupabaseClient();
+  const company = await getCurrentCompany();
   const [games, teams, participants, predictions, finalPredictions, finalResult] = await Promise.all([
     client.from("jogos").select("*").order("id_jogo"),
     client.from("selecoes").select("*").order("grupo").order("posicao"),
-    client.from("participantes").select("*").order("id_participante"),
-    client.from("palpites").select("*").order("id_jogo"),
-    client.from("fase_final").select("*").order("id_participante"),
+    client.from("participantes").select("*").eq("company_id", company.id).order("id_participante"),
+    client.from("palpites").select("*").eq("company_id", company.id).order("id_jogo"),
+    client.from("fase_final").select("*").eq("company_id", company.id).order("id_participante"),
     client.from("resultado_final").select("*").order("id", { ascending: false }).limit(1),
   ]);
 
@@ -143,9 +168,15 @@ export async function saveAdminProfile(profile) {
 
 export async function saveParticipant(participant) {
   const client = await getSupabaseClient();
+  const company = await getCurrentCompany();
+  const participantWithCompany = {
+    ...participant,
+    company_id: company.id,
+    company_name: company.name,
+  };
   const { data, error } = await client
     .from("participantes")
-    .upsert(participantPayload(participant), { onConflict: "company_id,id_participante" })
+    .upsert(participantPayload(participantWithCompany), { onConflict: "company_id,id_participante" })
     .select()
     .single();
   if (error) throw new Error(formatSupabaseError(error, "Falha ao salvar participante."));
@@ -154,14 +185,25 @@ export async function saveParticipant(participant) {
 
 export async function savePredictionSetToSupabase(matchPredictions, finalPrediction) {
   const client = await getSupabaseClient();
+  const company = await getCurrentCompany();
+  const matchPredictionsWithCompany = matchPredictions.map((prediction) => ({
+    ...prediction,
+    company_id: company.id,
+    company_name: company.name,
+  }));
+  const finalPredictionWithCompany = {
+    ...finalPrediction,
+    company_id: company.id,
+    company_name: company.name,
+  };
   const { error: predictionsError } = await client
     .from("palpites")
-    .upsert(matchPredictions.map(predictionPayload), { onConflict: "company_id,id_participante,id_jogo" });
+    .upsert(matchPredictionsWithCompany.map(predictionPayload), { onConflict: "company_id,id_participante,id_jogo" });
   if (predictionsError) throw new Error(formatSupabaseError(predictionsError, "Falha ao salvar palpites."));
 
   const { error: finalError } = await client
     .from("fase_final")
-    .upsert(finalPredictionPayload(finalPrediction), { onConflict: "company_id,id_participante" });
+    .upsert(finalPredictionPayload(finalPredictionWithCompany), { onConflict: "company_id,id_participante" });
   if (finalError) throw new Error(formatSupabaseError(finalError, "Falha ao salvar fase final."));
 }
 
@@ -192,8 +234,9 @@ export async function saveMatchResults(results, finalResult) {
 
 export async function saveRanking(ranking, companyId) {
   const client = await getSupabaseClient();
+  const company = await getCurrentCompany();
   const payload = ranking.map((item, index) => ({
-    company_id: companyId,
+    company_id: company.id || companyId,
     id_participante: Number(item.id),
     apelido: item.name,
     pontos_jogos: Number(item.pointsGames || 0),
