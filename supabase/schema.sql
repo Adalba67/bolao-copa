@@ -330,7 +330,7 @@ begin
     now(),
     now()
   )
-  on conflict (login) do update
+  on conflict on constraint admins_login_key do update
   set
     company_id = excluded.company_id,
     name_type = excluded.name_type,
