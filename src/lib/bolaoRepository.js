@@ -31,6 +31,10 @@ function normalizePrediction(prediction) {
   };
 }
 
+function participantDisplayNameForRepository(participant) {
+  return [participant.nome, participant.sobrenome].filter(Boolean).join(" ") || participant.apelido || participant.nome;
+}
+
 function participantPayload(participant) {
   return {
     id_participante: Number(participant.id_participante),
@@ -183,18 +187,48 @@ export async function saveParticipant(participant) {
   return normalizeParticipant(data);
 }
 
-export async function savePredictionSetToSupabase(matchPredictions, finalPrediction) {
+async function getParticipantInCurrentCompany(participantId) {
   const client = await getSupabaseClient();
   const company = await getCurrentCompany();
+  const { data, error } = await client
+    .from("participantes")
+    .select("*")
+    .eq("company_id", company.id)
+    .eq("id_participante", Number(participantId))
+    .eq("ativo", true)
+    .maybeSingle();
+
+  if (error) throw new Error(formatSupabaseError(error, "Falha ao validar participante."));
+  if (!data) throw new Error("Participante invalido para a empresa atual.");
+
+  return {
+    company,
+    participant: normalizeParticipant(data),
+  };
+}
+
+export async function savePredictionSetToSupabase(matchPredictions, finalPrediction) {
+  const client = await getSupabaseClient();
+  const predictionParticipantIds = new Set(matchPredictions.map((prediction) => String(prediction.id_participante)));
+  predictionParticipantIds.add(String(finalPrediction.id_participante));
+  if (predictionParticipantIds.size !== 1) {
+    throw new Error("Os palpites devem pertencer a um unico participante.");
+  }
+
+  const { company, participant } = await getParticipantInCurrentCompany(finalPrediction.id_participante);
   const matchPredictionsWithCompany = matchPredictions.map((prediction) => ({
     ...prediction,
     company_id: company.id,
     company_name: company.name,
+    id_participante: participant.id_participante,
+    apelido: participantDisplayNameForRepository(participant),
   }));
   const finalPredictionWithCompany = {
     ...finalPrediction,
     company_id: company.id,
     company_name: company.name,
+    id_participante: participant.id_participante,
+    apelido: participantDisplayNameForRepository(participant),
   };
   const { error: predictionsError } = await client
     .from("palpites")

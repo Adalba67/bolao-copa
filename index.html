@@ -344,7 +344,10 @@
               <h3>Resultados da simulação</h3>
               <p>Digite 10 resultados para entrar no cálculo final da simulação.</p>
             </div>
-            <button id="manualCalculateButton" type="button">Aplicar resultados</button>
+            <div class="save-actions">
+              <button id="manualCalculateButton" type="button">Aplicar resultados</button>
+              <p id="manualFeedbackTop" class="feedback inline-feedback" aria-live="polite"></p>
+            </div>
           </div>
 
           <div class="panel form-panel">
@@ -394,6 +397,7 @@
             </div>
             <div class="line-actions">
               <button id="linePredictionsButton" type="button">Salvar meus palpites</button>
+              <p id="linePredictionsFeedbackTop" class="feedback inline-feedback" aria-live="polite"></p>
               <div class="pager compact-pager">
                 <button id="prevPredictionsPageTop" type="button" aria-label="Pagina anterior">←</button>
                 <span id="predictionsPageInfoTop">Pagina 1</span>

@@ -253,6 +253,19 @@ nav {
   justify-items: end;
 }
 
+.save-actions {
+  align-items: flex-end;
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.inline-feedback {
+  margin: 0;
+  max-width: 360px;
+  text-align: right;
+}
+
 .compact-pager {
   gap: 8px;
 }
@@ -748,6 +761,16 @@ th {
     display: grid;
   }
 
+  .line-actions,
+  .save-actions {
+    justify-items: stretch;
+  }
+
+  .inline-feedback {
+    max-width: none;
+    text-align: left;
+  }
+
   .login-layout,
   .score-summary {
     grid-template-columns: 1fr 1fr;
@@ -781,6 +804,10 @@ th {
   .filters-row,
   .bar-row {
     display: grid;
+  }
+
+  .pager {
+    flex-wrap: wrap;
   }
 
   .logo-mark {

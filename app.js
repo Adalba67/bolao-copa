@@ -25,6 +25,12 @@ let pendingPasswordParticipantId = null;
 let companyProfile = null;
 
 const byId = (id) => document.getElementById(id);
+const setFeedback = (ids, message) => {
+  ids.forEach((id) => {
+    const element = byId(id);
+    if (element) element.textContent = message;
+  });
+};
 const GOOGLE_APPS_SCRIPT_WEBHOOK_URL = "";
 const DEFAULT_GOOGLE_SHEETS_SPREADSHEET_ID = "1wEG1rdXUuRC00YkRtuQeuOEPeZYyijFu8Sj_nHu2SXQ";
 const SIMULATION_LIMIT = 10;
@@ -695,9 +701,9 @@ function updatePredictionModeLock() {
   setSectionControlsDisabled("palpitesLinha", lockedByDate);
 
   if (lockedByDate) {
-    byId("linePredictionsFeedback").textContent = "A Copa ja começou. A edição de palpites está bloqueada.";
+    setFeedback(["linePredictionsFeedback", "linePredictionsFeedbackTop"], "A Copa ja começou. A edição de palpites está bloqueada.");
   } else if (byId("linePredictionsFeedback").textContent.includes("bloqueada")) {
-    byId("linePredictionsFeedback").textContent = "";
+    setFeedback(["linePredictionsFeedback", "linePredictionsFeedbackTop"], "");
   }
 }
 
@@ -1151,7 +1157,7 @@ async function applyManualResults() {
   try {
     await saveMatchResults(results, finalResult);
   } catch (error) {
-    byId("manualFeedback").textContent = error.message;
+    setFeedback(["manualFeedback", "manualFeedbackTop"], error.message);
     return;
   }
 
@@ -1167,18 +1173,18 @@ async function applyManualResults() {
   renderGames();
   renderPredictions();
   renderRanking();
-  byId("manualFeedback").textContent = "Os 10 resultados foram salvos no Supabase.";
+  setFeedback(["manualFeedback", "manualFeedbackTop"], "Os 10 resultados foram salvos no Supabase.");
 }
 
 async function fetchBallDontLieResults(options = {}) {
   const { silent = false } = options;
   const apiKey = byId("ballApiKey").value.trim();
   if (!apiKey) {
-    if (!silent) byId("manualFeedback").textContent = "Informe a chave da API Ball Don't Lie.";
+    if (!silent) setFeedback(["manualFeedback", "manualFeedbackTop"], "Informe a chave da API Ball Don't Lie.");
     return;
   }
 
-  byId("manualFeedback").textContent = "Buscando resultados na Ball Don't Lie...";
+  setFeedback(["manualFeedback", "manualFeedbackTop"], "Buscando resultados na Ball Don't Lie...");
 
   try {
     const response = await fetch(
@@ -1235,11 +1241,14 @@ async function fetchBallDontLieResults(options = {}) {
     renderGames();
     renderPredictions();
     renderRanking();
-    byId("manualFeedback").textContent = imported
-      ? `${imported} resultados importados da Ball Don't Lie.`
-      : "Nenhum dos 10 jogos possui placar disponível na Ball Don't Lie.";
+    setFeedback(
+      ["manualFeedback", "manualFeedbackTop"],
+      imported
+        ? `${imported} resultados importados da Ball Don't Lie.`
+        : "Nenhum dos 10 jogos possui placar disponível na Ball Don't Lie."
+    );
   } catch (error) {
-    byId("manualFeedback").textContent = `Erro ao buscar Ball Don't Lie: ${error.message}`;
+    setFeedback(["manualFeedback", "manualFeedbackTop"], `Erro ao buscar Ball Don't Lie: ${error.message}`);
   }
 }
 
@@ -1256,14 +1265,20 @@ function participantHasPredictions(participantId) {
 function participantForNewPrediction(nameInputId, feedbackId) {
   const sessionParticipantId = activeParticipantId();
   if (sessionParticipantId) {
-    const participant = participantes.find((item) => item.id_participante === sessionParticipantId);
+    const participant = participantes.find((item) =>
+      item.id_participante === sessionParticipantId && item.company_id === activeCompanyId()
+    );
+    if (!participant) {
+      setFeedback([feedbackId, "linePredictionsFeedbackTop"], "Sessão do participante desatualizada. Saia e entre novamente.");
+      return null;
+    }
     return participant;
   }
 
   const participant = selectedLineParticipant();
   if (participant) return participant;
 
-  byId(feedbackId).textContent = "Selecione um participante cadastrado para salvar os palpites.";
+  setFeedback([feedbackId, "linePredictionsFeedbackTop"], "Selecione um participante cadastrado para salvar os palpites.");
   return null;
 }
 
@@ -1296,7 +1311,10 @@ function validateMatchPredictionInputs(source, feedbackId) {
 
   if (!missingGame) return true;
 
-  byId(feedbackId).textContent = `Preencha o palpite completo do jogo ${missingGame.id_jogo} antes de salvar.`;
+  setFeedback(
+    [feedbackId, "linePredictionsFeedbackTop"],
+    `Preencha o palpite completo do jogo ${missingGame.id_jogo} antes de salvar.`
+  );
   return false;
 }
 
@@ -1344,23 +1362,40 @@ async function savePredictionSet(participant, matchPredictions, finalPrediction)
 
 async function addLinePredictions() {
   if (!canEditPredictions()) return;
+  try {
+    await syncCurrentCompany();
+  } catch (error) {
+    setFeedback(["linePredictionsFeedback", "linePredictionsFeedbackTop"], error.message);
+    return;
+  }
 
   const participant = participantForNewPrediction("lineParticipantName", "linePredictionsFeedback");
   if (!participant) return;
+  const sessionParticipantId = activeParticipantId();
+  if (sessionParticipantId && participant.id_participante !== sessionParticipantId) {
+    setFeedback(
+      ["linePredictionsFeedback", "linePredictionsFeedbackTop"],
+      "Você só pode salvar palpites do participante logado."
+    );
+    return;
+  }
   if (!validateMatchPredictionInputs("linePred", "linePredictionsFeedback")) return;
   const matchPredictions = buildMatchPredictions(participant, "linePred");
   const finalPrediction = buildFinalPrediction(participant, "linePred");
   if (hasRepeatedFinalTeams(finalPrediction)) {
-    byId("linePredictionsFeedback").textContent = "Selecione quatro seleções diferentes para a fase final.";
+    setFeedback(["linePredictionsFeedback", "linePredictionsFeedbackTop"], "Selecione quatro seleções diferentes para a fase final.");
     return;
   }
   try {
     await savePredictionSet(participant, matchPredictions, finalPrediction);
   } catch (error) {
-    byId("linePredictionsFeedback").textContent = error.message;
+    setFeedback(["linePredictionsFeedback", "linePredictionsFeedbackTop"], error.message);
     return;
   }
-  byId("linePredictionsFeedback").textContent = `${participantDisplayName(participant)}: palpites desta página salvos.`;
+  setFeedback(
+    ["linePredictionsFeedback", "linePredictionsFeedbackTop"],
+    `${participantDisplayName(participant)}: palpites desta página salvos.`
+  );
 }
 
 function selectedRankingFilters() {
