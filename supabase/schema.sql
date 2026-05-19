@@ -266,6 +266,101 @@ as $$
   limit 1;
 $$;
 
+create or replace function public.save_admin_profile(
+  p_company_id text,
+  p_name_type text,
+  p_name text,
+  p_sheet_name text,
+  p_spreadsheet_id text,
+  p_google_sheet_id text,
+  p_webhook_url text,
+  p_logo_data_url text
+)
+returns table (
+  id uuid,
+  company_id text,
+  login text,
+  name_type text,
+  name text,
+  sheet_name text,
+  spreadsheet_id text,
+  google_sheet_id text,
+  webhook_url text,
+  logo_data_url text,
+  updated_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if nullif(trim(p_company_id), '') is null then
+    raise exception 'company_id obrigatorio';
+  end if;
+
+  if nullif(trim(p_name), '') is null then
+    raise exception 'name obrigatorio';
+  end if;
+
+  insert into public.admins (
+    company_id,
+    login,
+    password_hash,
+    name_type,
+    name,
+    sheet_name,
+    spreadsheet_id,
+    google_sheet_id,
+    webhook_url,
+    logo_data_url,
+    created_at,
+    updated_at
+  )
+  values (
+    p_company_id,
+    'adm',
+    extensions.crypt('12345', extensions.gen_salt('bf')),
+    p_name_type,
+    p_name,
+    p_sheet_name,
+    p_spreadsheet_id,
+    p_google_sheet_id,
+    p_webhook_url,
+    p_logo_data_url,
+    now(),
+    now()
+  )
+  on conflict (login) do update
+  set
+    company_id = excluded.company_id,
+    name_type = excluded.name_type,
+    name = excluded.name,
+    sheet_name = excluded.sheet_name,
+    spreadsheet_id = excluded.spreadsheet_id,
+    google_sheet_id = excluded.google_sheet_id,
+    webhook_url = excluded.webhook_url,
+    logo_data_url = excluded.logo_data_url,
+    updated_at = now();
+
+  return query
+  select
+    a.id,
+    a.company_id,
+    a.login,
+    a.name_type,
+    a.name,
+    a.sheet_name,
+    a.spreadsheet_id,
+    a.google_sheet_id,
+    a.webhook_url,
+    a.logo_data_url,
+    a.updated_at
+  from public.admins a
+  where a.login = 'adm'
+  limit 1;
+end;
+$$;
+
 drop trigger if exists touch_admins_updated_at on public.admins;
 create trigger touch_admins_updated_at
 before update on public.admins
@@ -552,8 +647,8 @@ grant select, insert, update on public.fase_final to anon, authenticated;
 grant select on public.ranking to anon, authenticated;
 revoke select on public.admins from anon;
 grant select, insert, update on public.admins to authenticated;
-grant insert, update on public.admins to anon;
 grant execute on function public.authenticate_admin(text, text) to anon, authenticated;
+grant execute on function public.save_admin_profile(text, text, text, text, text, text, text, text) to anon, authenticated;
 grant update on public.jogos to authenticated;
 grant update on public.jogos to anon;
 grant insert, update on public.resultado_final to authenticated;

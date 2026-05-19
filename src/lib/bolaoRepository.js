@@ -126,20 +126,16 @@ export async function signOutAdmin() {
 
 export async function saveAdminProfile(profile) {
   const client = await getSupabaseClient();
-  const { error } = await client
-    .from("admins")
-    .upsert({
-      company_id: profile.id,
-      login: "adm",
-      name_type: profile.name_type,
-      name: profile.name,
-      sheet_name: profile.sheet_name,
-      spreadsheet_id: profile.spreadsheet_id,
-      google_sheet_id: profile.googleSheetId,
-      webhook_url: profile.webhook_url,
-      logo_data_url: profile.logo_data_url,
-      updated_at: profile.updated_at,
-    }, { onConflict: "login" });
+  const { error } = await client.rpc("save_admin_profile", {
+    p_company_id: profile.id,
+    p_name_type: profile.name_type,
+    p_name: profile.name,
+    p_sheet_name: profile.sheet_name,
+    p_spreadsheet_id: profile.spreadsheet_id,
+    p_google_sheet_id: profile.googleSheetId,
+    p_webhook_url: profile.webhook_url,
+    p_logo_data_url: profile.logo_data_url,
+  });
 
   if (error) throw new Error(formatSupabaseError(error, "Falha ao salvar ADM."));
   return profile;
