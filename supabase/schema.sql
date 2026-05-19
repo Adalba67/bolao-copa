@@ -2,14 +2,15 @@
 -- Execute este arquivo no Supabase SQL Editor.
 -- Pode ser reexecutado: tabelas, indices, triggers e policies usam IF EXISTS/IF NOT EXISTS.
 
-create extension if not exists pgcrypto;
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 -- =========================================================
 -- Tabelas
 -- =========================================================
 
 create table if not exists public.admins (
-  id uuid primary key default gen_random_uuid(),
+  id uuid primary key default extensions.gen_random_uuid(),
   user_id uuid unique references auth.users(id) on delete set null,
   company_id text not null unique,
   login text not null unique,
@@ -26,15 +27,16 @@ create table if not exists public.admins (
 );
 
 alter table public.admins alter column user_id drop not null;
+alter table public.admins alter column id set default extensions.gen_random_uuid();
 alter table public.admins add column if not exists login text;
 alter table public.admins add column if not exists password_hash text;
 alter table public.admins alter column login set default 'adm';
-alter table public.admins alter column password_hash set default crypt('12345', gen_salt('bf'));
+alter table public.admins alter column password_hash set default extensions.crypt('12345', extensions.gen_salt('bf'));
 
 update public.admins
 set
   login = coalesce(login, 'admin-' || left(id::text, 8)),
-  password_hash = coalesce(password_hash, crypt('12345', gen_salt('bf')))
+  password_hash = coalesce(password_hash, extensions.crypt('12345', extensions.gen_salt('bf')))
 where login is null or password_hash is null;
 
 alter table public.admins alter column login set not null;
@@ -244,7 +246,7 @@ returns table (
 )
 language sql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
   select
     a.id,
@@ -260,7 +262,7 @@ as $$
     a.updated_at
   from public.admins a
   where lower(a.login) = lower(p_login)
-    and a.password_hash = crypt(p_password, a.password_hash)
+    and a.password_hash = extensions.crypt(p_password, a.password_hash)
   limit 1;
 $$;
 
@@ -577,7 +579,7 @@ insert into public.admins (
 values (
   'sem-empresa',
   'adm',
-  crypt('12345', gen_salt('bf')),
+  extensions.crypt('12345', extensions.gen_salt('bf')),
   'Nome fantasia',
   'Empresa nao configurada',
   'Empresa nao configurada',
