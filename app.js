@@ -1,4 +1,15 @@
-﻿let jogos = [];
+﻿import {
+  loadBolaoData,
+  saveAdminProfile,
+  saveMatchResults,
+  saveParticipant,
+  savePredictionSetToSupabase,
+  saveRanking,
+  signInAdmin,
+  signOutAdmin,
+} from "./src/lib/bolaoRepository.js";
+
+let jogos = [];
 let selecoes = [];
 let participantes = [];
 let palpites = [];
@@ -19,12 +30,6 @@ const SIMULATION_LIMIT = 10;
 const PREDICTION_PAGE_SIZE = 12;
 const GAMES_PAGE_SIZE = 12;
 const WORLD_CUP_START_DATE = "2026-06-11";
-const STORAGE_KEYS = {
-  company: "bolao-company-profile",
-  participants: "bolao-participants",
-  predictions: "bolao-predictions",
-  finalPredictions: "bolao-final-predictions",
-};
 const countryCodes = {
   Algeria: "dz",
   Argentina: "ar",
@@ -204,30 +209,6 @@ async function loadCsv(path) {
   return parseCsv(await response.text());
 }
 
-function readStoredList(key) {
-  try {
-    return JSON.parse(localStorage.getItem(scopedStorageKey(key)) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function writeStoredList(key, value) {
-  localStorage.setItem(scopedStorageKey(key), JSON.stringify(value));
-}
-
-function readStoredObject(key) {
-  try {
-    return JSON.parse(localStorage.getItem(key) || "null");
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredObject(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
-}
-
 function slugify(value) {
   return String(value || "sem-empresa")
     .trim()
@@ -240,11 +221,6 @@ function slugify(value) {
 
 function activeCompanyId() {
   return companyProfile?.id || "sem-empresa";
-}
-
-function scopedStorageKey(key) {
-  if (key === STORAGE_KEYS.company) return key;
-  return `bolao:${activeCompanyId()}:${key}`;
 }
 
 function digitsOnly(value) {
@@ -293,8 +269,19 @@ function officialResultFor(gameId) {
   return result ? `${result.placar_real_casa} x ${result.placar_real_fora}` : "-";
 }
 
+function hydrateOfficialResults() {
+  simulatedResults = new Map();
+  jogos.forEach((game) => {
+    if (game.placar_real_casa === "" || game.placar_real_fora === "") return;
+    simulatedResults.set(String(game.id_jogo), {
+      placar_real_casa: Number(game.placar_real_casa),
+      placar_real_fora: Number(game.placar_real_fora),
+      status_jogo: game.status_jogo || "finalizado",
+    });
+  });
+}
+
 function loadCompanyProfile() {
-  companyProfile = readStoredObject(STORAGE_KEYS.company);
   return companyProfile;
 }
 
@@ -348,42 +335,23 @@ function resetCompanyRuntimeData() {
 }
 
 function mergeStoredData() {
-  const storedParticipants = readStoredList(STORAGE_KEYS.participants);
-  const storedPredictions = readStoredList(STORAGE_KEYS.predictions);
-  const storedFinalPredictions = readStoredList(STORAGE_KEYS.finalPredictions);
-  const existingIds = new Set(participantes.map((participant) => participant.id_participante));
-
-  storedParticipants.forEach((participant) => {
-    if (!existingIds.has(participant.id_participante)) participantes.push(participant);
-  });
-  palpites.push(...storedPredictions);
-  faseFinal.push(...storedFinalPredictions);
+  return;
 }
 
-function persistParticipant(participant) {
-  const stored = readStoredList(STORAGE_KEYS.participants)
-    .filter((item) => item.id_participante !== participant.id_participante);
-  writeStoredList(STORAGE_KEYS.participants, [...stored, participant]);
+async function persistParticipant(participant) {
+  return saveParticipant(participant);
 }
 
-function updateParticipant(participantId, changes) {
+async function updateParticipant(participantId, changes) {
   const participant = participantes.find((item) => item.id_participante === participantId);
   if (!participant) return null;
   Object.assign(participant, changes);
-  persistParticipant(participant);
+  await persistParticipant(participant);
   return participant;
 }
 
-function persistPredictions(matchPredictions, finalPrediction) {
-  const storedPredictions = readStoredList(STORAGE_KEYS.predictions)
-    .filter((prediction) => !matchPredictions.some((item) =>
-      item.id_participante === prediction.id_participante && item.id_jogo === prediction.id_jogo
-    ));
-  const storedFinalPredictions = readStoredList(STORAGE_KEYS.finalPredictions)
-    .filter((prediction) => prediction.id_participante !== finalPrediction.id_participante);
-
-  writeStoredList(STORAGE_KEYS.predictions, [...storedPredictions, ...matchPredictions]);
-  writeStoredList(STORAGE_KEYS.finalPredictions, [...storedFinalPredictions, finalPrediction]);
+async function persistPredictions(matchPredictions, finalPrediction) {
+  await savePredictionSetToSupabase(matchPredictions, finalPrediction);
 }
 
 function participantDisplayName(participant) {
@@ -432,20 +400,47 @@ function setupAuth() {
     byId("loginForm").classList.remove("hidden");
   });
 
-  byId("loginForm").addEventListener("submit", (event) => {
+  byId("loginForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     const user = byId("username").value.trim();
     const password = byId("password").value;
 
-    if (user.toUpperCase() === "ADM" && password === "12345") {
-      sessionStorage.setItem("bolao-user", JSON.stringify({ role: "admin", name: "ADM" }));
-      byId("loginError").textContent = "";
-      checkSession();
-      return;
+    if (user.includes("@")) {
+      try {
+        const { admin } = await signInAdmin(user, password);
+        if (admin) {
+          companyProfile = {
+            id: admin.company_id,
+            name_type: admin.name_type,
+            name: admin.name,
+            sheet_name: admin.sheet_name,
+            spreadsheet_id: admin.spreadsheet_id,
+            googleSheetId: admin.google_sheet_id,
+            webhook_url: admin.webhook_url,
+            logo_data_url: admin.logo_data_url,
+            updated_at: admin.updated_at,
+          };
+          updateCompanyLabels();
+        }
+        sessionStorage.setItem("bolao-user", JSON.stringify({ role: "admin", name: admin?.name || "ADM" }));
+        byId("loginError").textContent = "";
+        checkSession();
+        return;
+      } catch (error) {
+        byId("loginError").textContent = error.message;
+        return;
+      }
     }
 
     const participant = participantes.find((item) => item.login === user);
     if (participant && participantPasswordMatches(participant, password)) {
+      companyProfile = {
+        id: participant.company_id || activeCompanyId(),
+        name: participant.company_name || companyDisplayName(),
+        name_type: "",
+        logo_data_url: companyProfile?.logo_data_url || "",
+      };
+      updateCompanyLabels();
       if (participant.must_change_password) {
         pendingPasswordParticipantId = participant.id_participante;
         byId("loginForm").classList.add("hidden");
@@ -468,7 +463,7 @@ function setupAuth() {
     byId("loginError").textContent = "Login ou senha inválidos.";
   });
 
-  byId("changePasswordForm").addEventListener("submit", (event) => {
+  byId("changePasswordForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     const password = byId("newParticipantPassword").value;
     const confirm = byId("newParticipantPasswordConfirm").value;
@@ -477,10 +472,16 @@ function setupAuth() {
       return;
     }
 
-    const participant = updateParticipant(pendingPasswordParticipantId, {
-      password_token: passwordToken(password),
-      must_change_password: false,
-    });
+    let participant = null;
+    try {
+      participant = await updateParticipant(pendingPasswordParticipantId, {
+        password_token: passwordToken(password),
+        must_change_password: false,
+      });
+    } catch (error) {
+      byId("changePasswordFeedback").textContent = error.message;
+      return;
+    }
     if (!participant) {
       byId("changePasswordFeedback").textContent = "Participante não encontrado.";
       return;
@@ -497,7 +498,7 @@ function setupAuth() {
     checkSession();
   });
 
-  byId("registerForm").addEventListener("submit", (event) => {
+  byId("registerForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     const firstName = byId("registerFirstName").value.trim();
     const lastName = byId("registerLastName").value.trim();
@@ -537,15 +538,21 @@ function setupAuth() {
       ativo: "True",
     };
 
-    participantes.push(participant);
-    persistParticipant(participant);
+    try {
+      const savedParticipant = await persistParticipant(participant);
+      participantes.push(savedParticipant);
+    } catch (error) {
+      byId("registerFeedback").textContent = error.message;
+      return;
+    }
     renderDashboard();
     renderParticipantsSheet();
     populateParticipantForms();
     byId("registerFeedback").textContent = `Cadastro criado. Login: ${login}`;
   });
 
-  byId("logoutButton").addEventListener("click", () => {
+  byId("logoutButton").addEventListener("click", async () => {
+    await signOutAdmin().catch(() => {});
     sessionStorage.removeItem("bolao-user");
     checkSession();
     activateSection("dashboard");
@@ -590,15 +597,20 @@ function setupCompanyAdmin() {
       logo_data_url: logoDataUrl,
       updated_at: new Date().toISOString(),
     };
-    writeStoredObject(STORAGE_KEYS.company, companyProfile);
-    updateCompanyLabels();
-    byId("companyLogoFile").value = "";
+    try {
+      await saveAdminProfile(companyProfile);
+      updateCompanyLabels();
+      byId("companyLogoFile").value = "";
+    } catch (error) {
+      byId("companyFeedback").textContent = error.message;
+      return;
+    }
 
     if (previousId !== companyProfile.id) {
       resetCompanyRuntimeData();
     }
 
-    byId("companyFeedback").textContent = "Cadastro ADM salvo. Os dados desta empresa estão isolados.";
+    byId("companyFeedback").textContent = "Cadastro ADM salvo no Supabase. Os dados desta empresa estão isolados.";
   });
 
   byId("syncSheetsButton")?.addEventListener("click", syncGoogleSheets);
@@ -743,7 +755,7 @@ function renderGames() {
     .map((game) => {
       const result = simulatedResults.get(game.id_jogo);
       const score = result ? `${result.placar_real_casa} x ${result.placar_real_fora}` : "-";
-      const status = result ? "simulado" : game.status_jogo;
+      const status = result?.status_jogo || game.status_jogo;
       return `<tr>
         <td>${game.id_jogo}</td>
         <td>${game.data_hora}</td>
@@ -1037,11 +1049,12 @@ function seededScore(seed) {
 function simulate() {
   simulatedResults = new Map();
   jogos.forEach((game) => {
-    const id = Number(game.id_jogo);
-    simulatedResults.set(game.id_jogo, {
-      placar_real_casa: seededScore(id * 7),
-      placar_real_fora: seededScore(id * 11 + 3),
-    });
+      const id = Number(game.id_jogo);
+      simulatedResults.set(game.id_jogo, {
+        placar_real_casa: seededScore(id * 7),
+        placar_real_fora: seededScore(id * 11 + 3),
+        status_jogo: "simulado",
+      });
   });
   renderGames();
   renderPredictions();
@@ -1074,25 +1087,49 @@ function calculateFinalStagePoints(prediction) {
   }, 0);
 }
 
-function applyManualResults() {
-  jogos.slice(0, SIMULATION_LIMIT).forEach((game) => {
-    simulatedResults.set(game.id_jogo, {
-      placar_real_casa: Number(byId(`realHome-${game.id_jogo}`).value || 0),
-      placar_real_fora: Number(byId(`realAway-${game.id_jogo}`).value || 0),
+async function applyManualResults() {
+  const results = jogos.slice(0, SIMULATION_LIMIT).map((game) => ({
+    id_jogo: game.id_jogo,
+    placar_real_casa: Number(byId(`realHome-${game.id_jogo}`).value || 0),
+    placar_real_fora: Number(byId(`realAway-${game.id_jogo}`).value || 0),
+    status_jogo: "finalizado",
+  }));
+
+  results.forEach((result) => {
+    simulatedResults.set(String(result.id_jogo), {
+      placar_real_casa: result.placar_real_casa,
+      placar_real_fora: result.placar_real_fora,
+      status_jogo: result.status_jogo,
     });
   });
 
-  resultadoFinal = [{
+  const finalResult = {
     real_1_lugar: byId("realFinal1").value.trim(),
     real_2_lugar: byId("realFinal2").value.trim(),
     real_3_lugar: byId("realFinal3").value.trim(),
     real_4_lugar: byId("realFinal4").value.trim(),
-  }];
+  };
+
+  try {
+    await saveMatchResults(results, finalResult);
+  } catch (error) {
+    byId("manualFeedback").textContent = error.message;
+    return;
+  }
+
+  results.forEach((result) => {
+    const game = gameById(result.id_jogo);
+    if (!game) return;
+    game.placar_real_casa = result.placar_real_casa;
+    game.placar_real_fora = result.placar_real_fora;
+    game.status_jogo = result.status_jogo;
+  });
+  resultadoFinal = [finalResult];
 
   renderGames();
   renderPredictions();
   renderRanking();
-  byId("manualFeedback").textContent = "Os 10 resultados foram aplicados na simulação.";
+  byId("manualFeedback").textContent = "Os 10 resultados foram salvos no Supabase.";
 }
 
 async function fetchBallDontLieResults(options = {}) {
@@ -1124,6 +1161,7 @@ async function fetchBallDontLieResults(options = {}) {
       (payload.data || []).map((match) => [String(match.match_number), match])
     );
     let imported = 0;
+    const importedResults = [];
 
     jogos.slice(0, SIMULATION_LIMIT).forEach((game) => {
       const match = matchesByNumber.get(String(game.id_jogo));
@@ -1134,9 +1172,27 @@ async function fetchBallDontLieResults(options = {}) {
       simulatedResults.set(game.id_jogo, {
         placar_real_casa: Number(match.home_score),
         placar_real_fora: Number(match.away_score),
+        status_jogo: "finalizado",
+      });
+      importedResults.push({
+        id_jogo: game.id_jogo,
+        placar_real_casa: Number(match.home_score),
+        placar_real_fora: Number(match.away_score),
+        status_jogo: "finalizado",
       });
       imported += 1;
     });
+
+    if (importedResults.length) {
+      await saveMatchResults(importedResults);
+      importedResults.forEach((result) => {
+        const game = gameById(result.id_jogo);
+        if (!game) return;
+        game.placar_real_casa = result.placar_real_casa;
+        game.placar_real_fora = result.placar_real_fora;
+        game.status_jogo = result.status_jogo;
+      });
+    }
 
     renderGames();
     renderPredictions();
@@ -1230,14 +1286,14 @@ function hasRepeatedFinalTeams(finalPrediction) {
   return new Set(teams).size !== teams.length;
 }
 
-function savePredictionSet(participant, matchPredictions, finalPrediction) {
+async function savePredictionSet(participant, matchPredictions, finalPrediction) {
   palpites = palpites.filter((prediction) => !matchPredictions.some((item) =>
     item.id_participante === prediction.id_participante && item.id_jogo === prediction.id_jogo
   ));
   faseFinal = faseFinal.filter((prediction) => prediction.id_participante !== finalPrediction.id_participante);
+  await persistPredictions(matchPredictions, finalPrediction);
   palpites.push(...matchPredictions);
   faseFinal.push(finalPrediction);
-  persistPredictions(matchPredictions, finalPrediction);
   renderPredictionFilters();
   renderDashboard();
   renderPredictions();
@@ -1248,7 +1304,7 @@ function savePredictionSet(participant, matchPredictions, finalPrediction) {
   updatePredictionModeLock();
 }
 
-function addLinePredictions() {
+async function addLinePredictions() {
   if (!canEditPredictions()) return;
 
   const participant = participantForNewPrediction("lineParticipantName", "linePredictionsFeedback");
@@ -1260,7 +1316,12 @@ function addLinePredictions() {
     byId("linePredictionsFeedback").textContent = "Selecione quatro seleções diferentes para a fase final.";
     return;
   }
-  savePredictionSet(participant, matchPredictions, finalPrediction);
+  try {
+    await savePredictionSet(participant, matchPredictions, finalPrediction);
+  } catch (error) {
+    byId("linePredictionsFeedback").textContent = error.message;
+    return;
+  }
   byId("linePredictionsFeedback").textContent = `${participantDisplayName(participant)}: palpites desta página salvos.`;
 }
 
@@ -1306,8 +1367,15 @@ function calculateRanking(filters = { round: "Todas", group: "Todos" }) {
     .sort((a, b) => b.pointsTotal - a.pointsTotal || b.pointsGames - a.pointsGames);
 }
 
+function canPersistRanking() {
+  return ![...simulatedResults.values()].some((result) => result.status_jogo === "simulado");
+}
+
 function renderRanking() {
   const ranking = calculateRanking({ round: "Todas", group: "Todos" });
+  if (canPersistRanking()) {
+    saveRanking(ranking, activeCompanyId()).catch((error) => console.error(error));
+  }
   byId("rankingTable").innerHTML = ranking.length
     ? ranking
       .map((participant, index) => `<tr>
@@ -1461,7 +1529,7 @@ function exportParticipantsToGoogleSheets() {
 }
 
 function setupParticipantPasswordReset() {
-  byId("participantsSheetTable").addEventListener("click", (event) => {
+  byId("participantsSheetTable").addEventListener("click", async (event) => {
     const button = event.target.closest("[data-reset-password]");
     if (!button) return;
 
@@ -1470,10 +1538,15 @@ function setupParticipantPasswordReset() {
     if (!participant) return;
 
     const tempPassword = temporaryPassword();
-    updateParticipant(participantId, {
-      password_token: passwordToken(tempPassword),
-      must_change_password: true,
-    });
+    try {
+      await updateParticipant(participantId, {
+        password_token: passwordToken(tempPassword),
+        must_change_password: true,
+      });
+    } catch (error) {
+      byId("participantsSheetFeedback").textContent = error.message;
+      return;
+    }
     button.closest("td").innerHTML = `<strong>Senha temporária:</strong> ${tempPassword}`;
   });
   byId("exportParticipantsButton").addEventListener("click", exportParticipantsToGoogleSheets);
@@ -1550,19 +1623,16 @@ function populateParticipantForms() {
 }
 
 async function boot() {
-  [jogos, selecoes, participantes, palpites, faseFinal, resultadoFinal] = await Promise.all([
-    loadCsv("./src/data/jogos_exemplo.csv"),
-    loadCsv("./src/data/selecoes_grupos.csv"),
-    loadCsv("./src/data/participantes_exemplo.csv"),
-    loadCsv("./src/data/palpites_exemplo.csv"),
-    loadCsv("./src/data/fase_final_exemplo.csv"),
-    loadCsv("./src/data/resultado_final_exemplo.csv"),
-  ]);
+  const data = await loadBolaoData();
+  jogos = data.jogos;
+  selecoes = data.selecoes;
+  participantes = data.participantes;
+  palpites = data.palpites;
+  faseFinal = data.faseFinal;
+  resultadoFinal = data.resultadoFinal;
+  hydrateOfficialResults();
 
   loadCompanyProfile();
-  participantes = [];
-  palpites = [];
-  faseFinal = [];
   mergeStoredData();
   setupAuth();
   setupNavigation();

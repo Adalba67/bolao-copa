@@ -4,11 +4,11 @@ Aplicacao web simples para administrar um bolao da Copa do Mundo.
 
 Repositorio sincronizado para teste de commit e push.
 
-O projeto roda como site estatico no navegador, usa CSVs locais como base inicial e tem regras de pontuacao tambem implementadas em Python para validacao e testes.
+O projeto roda como site estatico no navegador, usa Supabase como persistencia principal e tem regras de pontuacao tambem implementadas em Python para validacao e testes.
 
 ## Funcionalidades
 
-- Login local simples: `ADM` / `12345`.
+- Login de administrador via Supabase Auth.
 - Dashboard com banner animado.
 - Listagem de jogos e grupos.
 - Bandeiras das selecoes via FlagCDN.
@@ -16,7 +16,7 @@ O projeto roda como site estatico no navegador, usa CSVs locais como base inicia
 - Lancamento de 10 resultados pelo menu `Resultados`.
 - Simulador automatico de resultados.
 - Ranking com pontos dos jogos, fase final e total.
-- Primeiro colocado marcado como `ganhou`.
+- Persistencia em Supabase para participantes, palpites, resultados e ranking.
 - Integracao preparada com Ball Don't Lie para importar resultados reais quando a Copa comecar.
 
 ## Como rodar localmente
@@ -33,11 +33,10 @@ Acesse:
 http://127.0.0.1:8001/
 ```
 
-Login:
+Login ADM:
 
 ```text
-ADM
-12345
+Use o email e a senha criados em Supabase Auth.
 ```
 
 ## Como testar
@@ -86,7 +85,11 @@ https://api.balldontlie.io/fifa/worldcup/v1/matches?seasons[]=2026&per_page=100
 - `index.html`: estrutura da aplicacao web.
 - `styles.css`: visual, layout, banner e responsividade.
 - `app.js`: login, simulador, lancamento, ranking, bandeiras e API.
-- `src/data/*.csv`: dados locais de jogos, participantes, palpites e fase final.
+- `api/config.js`: expoe a configuracao publica do Supabase a partir das variaveis da Vercel.
+- `src/lib/supabaseClient.js`: cliente Supabase centralizado.
+- `src/lib/bolaoRepository.js`: camada de persistencia do bolao.
+- `supabase/schema.sql`: tabelas, indices e politicas RLS.
+- `src/data/*.csv`: arquivos de importacao inicial para agenda e selecoes.
 - `src/rules/*.py`: regras de pontuacao em Python.
 - `tests/`: testes das regras.
 - `vercel.json`: configuracao para deploy estatico na Vercel.
@@ -98,3 +101,4 @@ https://api.balldontlie.io/fifa/worldcup/v1/matches?seasons[]=2026&per_page=100
 - [API Ball Don't Lie](docs/api_ball_dont_lie.md)
 - [Regras de pontuacao](docs/regras_pontuacao.md)
 - [Estrutura da planilha](docs/estrutura_planilha.md)
+- [Supabase](docs/supabase.md)

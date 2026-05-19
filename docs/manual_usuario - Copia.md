@@ -19,7 +19,7 @@ O Bolao da Copa serve para:
 O acesso administrativo padrao e:
 
 - Login: `ADM`
-- Senha: `12345`
+- Senha: a senha cadastrada no Supabase Auth para o administrador.
 
 O login de sessao fica salvo somente no navegador, em `sessionStorage`, com a chave `bolao-user`.
 
@@ -183,45 +183,13 @@ Fase final:
 
 ### 11.1 Dados iniciais do projeto
 
-Os dados base ficam nos CSVs da pasta:
-
-```text
-src/data/
-```
-
-Arquivos principais:
-
-```text
-src/data/jogos_exemplo.csv
-src/data/selecoes_grupos.csv
-src/data/participantes_exemplo.csv
-src/data/palpites_exemplo.csv
-src/data/fase_final_exemplo.csv
-src/data/resultado_final_exemplo.csv
-```
-
-Esses arquivos servem como base inicial. Quando o usuario cadastra participantes e palpites pela tela, os novos dados nao alteram esses CSVs automaticamente.
+Os dados base ficam no Supabase. Os CSVs em `src/data/` servem apenas como fonte de importacao inicial da agenda de jogos e das selecoes.
 
 ### 11.2 Dados cadastrados pela tela
 
-Os dados cadastrados pelo usuario ficam no `localStorage` do navegador.
+Os dados cadastrados pelo usuario ficam no Supabase.
 
-As chaves principais sao:
-
-```text
-bolao-company-profile
-bolao:<id-da-empresa>:bolao-participants
-bolao:<id-da-empresa>:bolao-predictions
-bolao:<id-da-empresa>:bolao-final-predictions
-```
-
-Exemplo para a empresa `copa-da-firma`:
-
-```text
-bolao:copa-da-firma:bolao-participants
-bolao:copa-da-firma:bolao-predictions
-bolao:copa-da-firma:bolao-final-predictions
-```
+As tabelas principais sao `admins`, `participantes`, `jogos`, `palpites`, `fase_final`, `resultado_final` e `ranking`.
 
 Isso significa que os cadastros ficam no navegador e no computador onde foram feitos. Se abrir em outro navegador ou limpar os dados do navegador, esses dados locais podem nao aparecer.
 
@@ -289,7 +257,7 @@ vercel-stage/
 
 Essa pasta contem uma copia de arquivos usada como area de preparacao para deploy/publicacao na Vercel.
 
-Ela nao e a base principal dos dados do usuario. A base principal dos cadastros feitos pela tela continua sendo o `localStorage` do navegador, e a copia externa opcional e o Google Sheets.
+Ela nao e a base principal dos dados do usuario. A base principal dos cadastros feitos pela tela e o Supabase, e a copia externa opcional e o Google Sheets.
 
 ## 12. Como usar no dia a dia
 
@@ -311,7 +279,7 @@ Fluxo recomendado:
 ## 13. Cuidados importantes
 
 - Nao limpe os dados do navegador sem antes exportar ou sincronizar os dados.
-- O `localStorage` e local ao navegador. Dados salvos no Chrome nao aparecem automaticamente no Edge, Firefox ou outro computador.
+- O Supabase e a fonte de verdade dos dados. Dados salvos em um navegador aparecem para outros acessos autorizados.
 - A planilha exportada pela tela de participantes contem participantes, mas nao substitui uma copia completa dos palpites e ranking.
 - Para ter copia externa, configure e use o Google Sheets.
 - Resultados simulados servem para teste e podem nao representar resultados reais.

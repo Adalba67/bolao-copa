@@ -14,6 +14,14 @@
       "use": "@vercel/static"
     },
     {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "src/lib/**",
+      "use": "@vercel/static"
+    },
+    {
       "src": "src/data/**",
       "use": "@vercel/static"
     },
@@ -26,6 +34,10 @@
     {
       "src": "/",
       "dest": "/index.html"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
     },
     {
       "src": "/(.*)",
