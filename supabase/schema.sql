@@ -266,6 +266,8 @@ as $$
   limit 1;
 $$;
 
+drop function if exists public.save_admin_profile(text, text, text, text, text, text, text, text);
+
 create or replace function public.save_admin_profile(
   p_company_id text,
   p_name_type text,
@@ -276,19 +278,7 @@ create or replace function public.save_admin_profile(
   p_webhook_url text,
   p_logo_data_url text
 )
-returns table (
-  id uuid,
-  company_id text,
-  login text,
-  name_type text,
-  name text,
-  sheet_name text,
-  spreadsheet_id text,
-  google_sheet_id text,
-  webhook_url text,
-  logo_data_url text,
-  updated_at timestamptz
-)
+returns void
 language plpgsql
 security definer
 set search_path = public, extensions
@@ -330,7 +320,7 @@ begin
     now(),
     now()
   )
-  on conflict on constraint admins_login_key do update
+  on conflict (login) do update
   set
     company_id = excluded.company_id,
     name_type = excluded.name_type,
@@ -341,23 +331,6 @@ begin
     webhook_url = excluded.webhook_url,
     logo_data_url = excluded.logo_data_url,
     updated_at = now();
-
-  return query
-  select
-    a.id,
-    a.company_id,
-    a.login,
-    a.name_type,
-    a.name,
-    a.sheet_name,
-    a.spreadsheet_id,
-    a.google_sheet_id,
-    a.webhook_url,
-    a.logo_data_url,
-    a.updated_at
-  from public.admins a
-  where a.login = 'adm'
-  limit 1;
 end;
 $$;
 
