@@ -405,7 +405,7 @@ function setupAuth() {
     const user = byId("username").value.trim();
     const password = byId("password").value;
 
-    if (user.includes("@")) {
+    if (user.toLowerCase() === "adm") {
       try {
         const { admin } = await signInAdmin(user, password);
         if (admin) {

@@ -10,8 +10,10 @@ create extension if not exists pgcrypto;
 
 create table if not exists public.admins (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null unique references auth.users(id) on delete cascade,
+  user_id uuid unique references auth.users(id) on delete set null,
   company_id text not null unique,
+  login text not null unique,
+  password_hash text not null,
   name_type text,
   name text not null,
   sheet_name text,
@@ -22,6 +24,21 @@ create table if not exists public.admins (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.admins alter column user_id drop not null;
+alter table public.admins add column if not exists login text;
+alter table public.admins add column if not exists password_hash text;
+alter table public.admins alter column login set default 'adm';
+alter table public.admins alter column password_hash set default crypt('12345', gen_salt('bf'));
+
+update public.admins
+set
+  login = coalesce(login, 'admin-' || left(id::text, 8)),
+  password_hash = coalesce(password_hash, crypt('12345', gen_salt('bf')))
+where login is null or password_hash is null;
+
+alter table public.admins alter column login set not null;
+alter table public.admins alter column password_hash set not null;
 
 create table if not exists public.jogos (
   id_jogo integer primary key,
@@ -51,7 +68,7 @@ create table if not exists public.selecoes (
 
 create table if not exists public.participantes (
   id bigserial primary key,
-  company_id text not null references public.admins(company_id) on delete cascade,
+  company_id text not null references public.admins(company_id) on update cascade on delete cascade,
   company_name text not null,
   id_participante integer not null,
   nome text not null,
@@ -72,7 +89,7 @@ create table if not exists public.participantes (
 create table if not exists public.palpites (
   id bigserial primary key,
   id_palpite integer,
-  company_id text not null references public.admins(company_id) on delete cascade,
+  company_id text not null references public.admins(company_id) on update cascade on delete cascade,
   company_name text not null,
   id_participante integer not null,
   apelido text,
@@ -89,12 +106,13 @@ create table if not exists public.palpites (
   constraint palpites_placares_check check (palpite_casa >= 0 and palpite_fora >= 0),
   constraint palpites_participante_fk foreign key (company_id, id_participante)
     references public.participantes(company_id, id_participante)
+    on update cascade
     on delete cascade
 );
 
 create table if not exists public.fase_final (
   id bigserial primary key,
-  company_id text not null references public.admins(company_id) on delete cascade,
+  company_id text not null references public.admins(company_id) on update cascade on delete cascade,
   company_name text not null,
   id_participante integer not null,
   apelido text,
@@ -108,6 +126,7 @@ create table if not exists public.fase_final (
   unique (company_id, id_participante),
   constraint fase_final_participante_fk foreign key (company_id, id_participante)
     references public.participantes(company_id, id_participante)
+    on update cascade
     on delete cascade
 );
 
@@ -124,7 +143,7 @@ create table if not exists public.resultado_final (
 
 create table if not exists public.ranking (
   id bigserial primary key,
-  company_id text not null references public.admins(company_id) on delete cascade,
+  company_id text not null references public.admins(company_id) on update cascade on delete cascade,
   id_participante integer not null,
   apelido text not null,
   pontos_jogos integer not null default 0,
@@ -142,14 +161,51 @@ create table if not exists public.ranking (
   ),
   constraint ranking_participante_fk foreign key (company_id, id_participante)
     references public.participantes(company_id, id_participante)
+    on update cascade
     on delete cascade
 );
+
+alter table public.participantes drop constraint if exists participantes_company_id_fkey;
+alter table public.participantes
+  add constraint participantes_company_id_fkey foreign key (company_id)
+  references public.admins(company_id) on update cascade on delete cascade;
+
+alter table public.palpites drop constraint if exists palpites_company_id_fkey;
+alter table public.palpites
+  add constraint palpites_company_id_fkey foreign key (company_id)
+  references public.admins(company_id) on update cascade on delete cascade;
+
+alter table public.palpites drop constraint if exists palpites_participante_fk;
+alter table public.palpites
+  add constraint palpites_participante_fk foreign key (company_id, id_participante)
+  references public.participantes(company_id, id_participante) on update cascade on delete cascade;
+
+alter table public.fase_final drop constraint if exists fase_final_company_id_fkey;
+alter table public.fase_final
+  add constraint fase_final_company_id_fkey foreign key (company_id)
+  references public.admins(company_id) on update cascade on delete cascade;
+
+alter table public.fase_final drop constraint if exists fase_final_participante_fk;
+alter table public.fase_final
+  add constraint fase_final_participante_fk foreign key (company_id, id_participante)
+  references public.participantes(company_id, id_participante) on update cascade on delete cascade;
+
+alter table public.ranking drop constraint if exists ranking_company_id_fkey;
+alter table public.ranking
+  add constraint ranking_company_id_fkey foreign key (company_id)
+  references public.admins(company_id) on update cascade on delete cascade;
+
+alter table public.ranking drop constraint if exists ranking_participante_fk;
+alter table public.ranking
+  add constraint ranking_participante_fk foreign key (company_id, id_participante)
+  references public.participantes(company_id, id_participante) on update cascade on delete cascade;
 
 -- =========================================================
 -- Indices
 -- =========================================================
 
 create index if not exists idx_admins_user_id on public.admins(user_id);
+create unique index if not exists idx_admins_login on public.admins(login);
 create index if not exists idx_participantes_company on public.participantes(company_id);
 create index if not exists idx_participantes_login on public.participantes(company_id, login);
 create index if not exists idx_jogos_grupo on public.jogos(grupo);
@@ -170,6 +226,42 @@ begin
   new.updated_at = now();
   return new;
 end;
+$$;
+
+create or replace function public.authenticate_admin(p_login text, p_password text)
+returns table (
+  id uuid,
+  company_id text,
+  login text,
+  name_type text,
+  name text,
+  sheet_name text,
+  spreadsheet_id text,
+  google_sheet_id text,
+  webhook_url text,
+  logo_data_url text,
+  updated_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select
+    a.id,
+    a.company_id,
+    a.login,
+    a.name_type,
+    a.name,
+    a.sheet_name,
+    a.spreadsheet_id,
+    a.google_sheet_id,
+    a.webhook_url,
+    a.logo_data_url,
+    a.updated_at
+  from public.admins a
+  where lower(a.login) = lower(p_login)
+    and a.password_hash = crypt(p_password, a.password_hash)
+  limit 1;
 $$;
 
 drop trigger if exists touch_admins_updated_at on public.admins;
@@ -223,6 +315,9 @@ alter table public.ranking enable row level security;
 drop policy if exists "admins_select_own_profile" on public.admins;
 drop policy if exists "admins_insert_own_profile" on public.admins;
 drop policy if exists "admins_update_own_profile" on public.admins;
+drop policy if exists "anon_upsert_default_admin" on public.admins;
+drop policy if exists "anon_insert_default_admin" on public.admins;
+drop policy if exists "anon_update_default_admin" on public.admins;
 
 create policy "admins_select_own_profile"
 on public.admins
@@ -243,8 +338,22 @@ to authenticated
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
 
+create policy "anon_insert_default_admin"
+on public.admins
+for insert
+to anon, authenticated
+with check (login = 'adm');
+
+create policy "anon_update_default_admin"
+on public.admins
+for update
+to anon, authenticated
+using (login = 'adm')
+with check (login = 'adm');
+
 drop policy if exists "public_select_jogos" on public.jogos;
 drop policy if exists "admins_update_jogos" on public.jogos;
+drop policy if exists "anon_update_jogos" on public.jogos;
 
 create policy "public_select_jogos"
 on public.jogos
@@ -259,6 +368,13 @@ to authenticated
 using (exists (select 1 from public.admins a where a.user_id = auth.uid()))
 with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
 
+create policy "anon_update_jogos"
+on public.jogos
+for update
+to anon, authenticated
+using (true)
+with check (true);
+
 drop policy if exists "public_select_selecoes" on public.selecoes;
 
 create policy "public_select_selecoes"
@@ -269,6 +385,7 @@ using (true);
 
 drop policy if exists "public_select_resultado_final" on public.resultado_final;
 drop policy if exists "admins_write_resultado_final" on public.resultado_final;
+drop policy if exists "anon_write_resultado_final" on public.resultado_final;
 
 create policy "public_select_resultado_final"
 on public.resultado_final
@@ -282,6 +399,13 @@ for all
 to authenticated
 using (exists (select 1 from public.admins a where a.user_id = auth.uid()))
 with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+
+create policy "anon_write_resultado_final"
+on public.resultado_final
+for all
+to anon, authenticated
+using (true)
+with check (true);
 
 drop policy if exists "public_select_participantes" on public.participantes;
 drop policy if exists "public_insert_participantes" on public.participantes;
@@ -376,6 +500,7 @@ with check (current_date < date '2026-06-11');
 
 drop policy if exists "public_select_ranking" on public.ranking;
 drop policy if exists "admins_write_ranking" on public.ranking;
+drop policy if exists "anon_write_ranking" on public.ranking;
 
 create policy "public_select_ranking"
 on public.ranking
@@ -404,6 +529,13 @@ with check (
   )
 );
 
+create policy "anon_write_ranking"
+on public.ranking
+for all
+to anon, authenticated
+using (true)
+with check (true);
+
 -- =========================================================
 -- Grants explicitos para PostgREST/Supabase API
 -- =========================================================
@@ -416,8 +548,50 @@ grant select, insert, update on public.participantes to anon, authenticated;
 grant select, insert, update on public.palpites to anon, authenticated;
 grant select, insert, update on public.fase_final to anon, authenticated;
 grant select on public.ranking to anon, authenticated;
+revoke select on public.admins from anon;
 grant select, insert, update on public.admins to authenticated;
+grant insert, update on public.admins to anon;
+grant execute on function public.authenticate_admin(text, text) to anon, authenticated;
 grant update on public.jogos to authenticated;
+grant update on public.jogos to anon;
 grant insert, update on public.resultado_final to authenticated;
+grant insert, update on public.resultado_final to anon;
 grant insert, update on public.ranking to authenticated;
+grant insert, update on public.ranking to anon;
 grant usage, select on all sequences in schema public to anon, authenticated;
+
+-- =========================================================
+-- Seed inicial obrigatorio
+-- =========================================================
+
+insert into public.admins (
+  company_id,
+  login,
+  password_hash,
+  name_type,
+  name,
+  sheet_name,
+  created_at,
+  updated_at
+)
+values (
+  'sem-empresa',
+  'adm',
+  crypt('12345', gen_salt('bf')),
+  'Nome fantasia',
+  'Empresa nao configurada',
+  'Empresa nao configurada',
+  now(),
+  now()
+)
+on conflict (login) do update
+set
+  company_id = coalesce(public.admins.company_id, excluded.company_id),
+  password_hash = case
+    when public.admins.password_hash is null then excluded.password_hash
+    else public.admins.password_hash
+  end,
+  name_type = coalesce(public.admins.name_type, excluded.name_type),
+  name = coalesce(public.admins.name, excluded.name),
+  sheet_name = coalesce(public.admins.sheet_name, excluded.sheet_name),
+  updated_at = now();

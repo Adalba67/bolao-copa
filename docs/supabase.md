@@ -9,8 +9,14 @@ Este projeto e um frontend estatico na Vercel, nao Vite e nao Next.js. Por isso 
 1. Crie um projeto no Supabase.
 2. Abra `SQL Editor`.
 3. Cole e execute `supabase/schema.sql`.
-4. Em `Authentication > Users`, crie o usuario ADM com email e senha.
-5. Entre no site com esse email/senha e salve o Cadastro ADM.
+4. O SQL cria o admin padrao no banco:
+
+```text
+login: adm
+senha: 12345
+```
+
+5. Entre no site com `adm` / `12345` e salve o Cadastro ADM.
 6. Importe `src/data/jogos_exemplo.csv` para a tabela `jogos`.
 7. Importe `src/data/selecoes_grupos.csv` para a tabela `selecoes`.
 
@@ -31,7 +37,7 @@ Se no futuro o projeto for migrado para Vite, renomeie para `VITE_SUPABASE_URL` 
 
 1. Configure as variaveis na Vercel e faca redeploy.
 2. Abra `/api/config` no deploy e confirme que retorna URL e anon key preenchidas.
-3. Abra o site e entre como ADM usando o usuario criado em Supabase Auth.
+3. Abra o site e entre como ADM usando `adm` / `12345`.
 4. Salve o Cadastro ADM.
 5. Cadastre um participante.
 6. Confira no Supabase se a tabela `participantes` recebeu o registro.

@@ -105,39 +105,32 @@ export async function loadBolaoData() {
 
 export async function signInAdmin(login, password) {
   const client = await getSupabaseClient();
-  const { data, error } = await client.auth.signInWithPassword({ email: login, password });
+  const { data, error } = await client.rpc("authenticate_admin", {
+    p_login: login,
+    p_password: password,
+  });
   if (error) throw new Error(formatSupabaseError(error, "Login de administrador invalido."));
 
-  const { data: admin, error: profileError } = await client
-    .from("admins")
-    .select("*")
-    .eq("user_id", data.user.id)
-    .maybeSingle();
-  if (profileError) throw new Error(formatSupabaseError(profileError, "Falha ao carregar perfil ADM."));
+  const admin = Array.isArray(data) ? data[0] : data;
+  if (!admin) throw new Error("Login de administrador invalido.");
 
   return {
-    user: data.user,
+    user: null,
     admin,
   };
 }
 
 export async function signOutAdmin() {
-  const client = await getSupabaseClient();
-  await client.auth.signOut();
+  return Promise.resolve();
 }
 
 export async function saveAdminProfile(profile) {
   const client = await getSupabaseClient();
-  const { data: authData, error: userError } = await client.auth.getUser();
-  if (userError || !authData?.user) {
-    throw new Error("Entre com uma conta de administrador do Supabase Auth antes de salvar o ADM.");
-  }
-
-  const { data, error } = await client
+  const { error } = await client
     .from("admins")
     .upsert({
-      user_id: authData.user.id,
       company_id: profile.id,
+      login: "adm",
       name_type: profile.name_type,
       name: profile.name,
       sheet_name: profile.sheet_name,
@@ -146,12 +139,10 @@ export async function saveAdminProfile(profile) {
       webhook_url: profile.webhook_url,
       logo_data_url: profile.logo_data_url,
       updated_at: profile.updated_at,
-    }, { onConflict: "user_id" })
-    .select()
-    .single();
+    }, { onConflict: "login" });
 
   if (error) throw new Error(formatSupabaseError(error, "Falha ao salvar ADM."));
-  return data;
+  return profile;
 }
 
 export async function saveParticipant(participant) {

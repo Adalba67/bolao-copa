@@ -19,7 +19,7 @@ O Bolao da Copa serve para:
 O acesso administrativo padrao e:
 
 - Login: `ADM`
-- Senha: a senha cadastrada no Supabase Auth para o administrador.
+- Senha: `12345`
 
 O login de sessao fica salvo somente no navegador, em `sessionStorage`, com a chave `bolao-user`.
 

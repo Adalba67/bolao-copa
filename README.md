@@ -8,7 +8,7 @@ O projeto roda como site estatico no navegador, usa Supabase como persistencia p
 
 ## Funcionalidades
 
-- Login de administrador via Supabase Auth.
+- Login de administrador persistido no Supabase.
 - Dashboard com banner animado.
 - Listagem de jogos e grupos.
 - Bandeiras das selecoes via FlagCDN.
@@ -36,7 +36,8 @@ http://127.0.0.1:8001/
 Login ADM:
 
 ```text
-Use o email e a senha criados em Supabase Auth.
+adm
+12345
 ```
 
 ## Como testar
