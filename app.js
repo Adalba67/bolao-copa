@@ -265,6 +265,12 @@ function gameRound(game) {
   return "3";
 }
 
+function formatGameDate(value) {
+  return String(value || "-")
+    .replace("T", " H ")
+    .replace(/:00(?:\.000)?(?:Z)?$/, "");
+}
+
 function officialResultFor(gameId) {
   const result = simulatedResults.get(String(gameId));
   return result ? `${result.placar_real_casa} x ${result.placar_real_fora}` : "-";
@@ -784,7 +790,7 @@ function renderGames() {
       const status = result?.status_jogo || game.status_jogo;
       return `<tr>
         <td>${game.id_jogo}</td>
-        <td>${game.data_hora}</td>
+        <td>${formatGameDate(game.data_hora)}</td>
         <td>${game.grupo}</td>
         <td>${teamLabel(game.time_casa)} x ${teamLabel(game.time_fora)}</td>
         <td>${status}</td>
@@ -804,7 +810,7 @@ function renderPredictions() {
       return `<tr>
         <td>${prediction.id_jogo}</td>
         <td>${prediction.apelido}</td>
-        <td>${game ? game.data_hora : "-"}</td>
+        <td>${game ? formatGameDate(game.data_hora) : "-"}</td>
         <td>${teamLabel(prediction.time_casa)} x ${teamLabel(prediction.time_fora)}</td>
         <td>${prediction.palpite_casa} x ${prediction.palpite_fora}</td>
         <td class="score">${officialResultFor(prediction.id_jogo)}</td>
@@ -842,6 +848,10 @@ function filteredSortedPredictions() {
         return participantCompare || gameCompare;
       }
 
+      if (gameFilter !== "Todos") {
+        return participantCompare;
+      }
+
       return gameCompare || participantCompare;
     });
 }
@@ -872,7 +882,7 @@ function renderPredictionFilters() {
   gameSelect.innerHTML = [
     `<option value="Todos">Todos os jogos</option>`,
     ...gamesWithPredictions.map((game) =>
-      `<option value="${game.id_jogo}">Jogo ${game.id_jogo} - ${game.data_hora} - ${teamName(game.time_casa)} x ${teamName(game.time_fora)}</option>`
+      `<option value="${game.id_jogo}">Jogo ${game.id_jogo} - ${formatGameDate(game.data_hora)} - ${teamName(game.time_casa)} x ${teamName(game.time_fora)}</option>`
     ),
   ].join("");
   gameSelect.value = [...gameSelect.options].some((option) => option.value === currentGame) ? currentGame : "Todos";
@@ -905,7 +915,7 @@ function renderMyPredictionGames() {
     .map((game) => {
       return `<article class="manual-game">
         <strong>${teamLabel(game.time_casa)} x ${teamLabel(game.time_fora)}</strong>
-        <span>Jogo ${game.id_jogo} - ${game.data_hora}</span>
+        <span>Jogo ${game.id_jogo} - ${formatGameDate(game.data_hora)}</span>
         <span>Resultado oficial: ${officialResultFor(game.id_jogo)}</span>
         <label>
           Palpite ${teamLabel(game.time_casa)}
@@ -957,10 +967,6 @@ function existingPredictionFor(gameId) {
   );
 }
 
-function predictionInputValue(existing, field) {
-  return existing ? existing[field] : "";
-}
-
 function selectTeamByKey(selectId, value) {
   const select = byId(selectId);
   const matchingOption = [...select.options].find((option) => teamKey(option.value) === teamKey(value));
@@ -1005,9 +1011,15 @@ function renderLineFinalPrediction() {
 
 function updatePredictionPager() {
   const pageCount = Math.max(Math.ceil(jogos.length / PREDICTION_PAGE_SIZE), 1);
-  byId("predictionsPageInfo").textContent = `Página ${currentPredictionPage + 1} de ${pageCount}`;
-  byId("prevPredictionsPage").disabled = currentPredictionPage === 0;
-  byId("nextPredictionsPage").disabled = currentPredictionPage >= pageCount - 1;
+  ["predictionsPageInfo", "predictionsPageInfoTop"].forEach((id) => {
+    if (byId(id)) byId(id).textContent = `Página ${currentPredictionPage + 1} de ${pageCount}`;
+  });
+  ["prevPredictionsPage", "prevPredictionsPageTop"].forEach((id) => {
+    if (byId(id)) byId(id).disabled = currentPredictionPage === 0;
+  });
+  ["nextPredictionsPage", "nextPredictionsPageTop"].forEach((id) => {
+    if (byId(id)) byId(id).disabled = currentPredictionPage >= pageCount - 1;
+  });
 }
 
 function renderLinePredictionGames() {
@@ -1019,19 +1031,19 @@ function renderLinePredictionGames() {
       const calculated = existing && result ? calculatePoints(existing, result).points : "-";
       return `<tr>
         <td>${game.id_jogo}</td>
-        <td>${game.data_hora}</td>
+        <td>${formatGameDate(game.data_hora)}</td>
         <td>${game.grupo}</td>
         <td>${teamLabel(game.time_casa)} x ${teamLabel(game.time_fora)}</td>
         <td>
           <div class="line-score-inputs">
             <label>
               ${teamName(game.time_casa)}
-              <input id="linePredHome-${game.id_jogo}" type="number" min="0" value="${predictionInputValue(existing, "palpite_casa")}" />
+              <input id="linePredHome-${game.id_jogo}" type="number" min="0" value="" />
             </label>
             <span>x</span>
             <label>
               ${teamName(game.time_fora)}
-              <input id="linePredAway-${game.id_jogo}" type="number" min="0" value="${predictionInputValue(existing, "palpite_fora")}" />
+              <input id="linePredAway-${game.id_jogo}" type="number" min="0" value="" />
             </label>
           </div>
         </td>
@@ -1596,14 +1608,18 @@ function setupPredictionFilters() {
 }
 
 function setupPredictionPager() {
-  byId("prevPredictionsPage").addEventListener("click", () => {
-    currentPredictionPage = Math.max(currentPredictionPage - 1, 0);
-    renderLinePredictionGames();
+  ["prevPredictionsPage", "prevPredictionsPageTop"].forEach((id) => {
+    byId(id)?.addEventListener("click", () => {
+      currentPredictionPage = Math.max(currentPredictionPage - 1, 0);
+      renderLinePredictionGames();
+    });
   });
-  byId("nextPredictionsPage").addEventListener("click", () => {
-    const pageCount = Math.max(Math.ceil(jogos.length / PREDICTION_PAGE_SIZE), 1);
-    currentPredictionPage = Math.min(currentPredictionPage + 1, pageCount - 1);
-    renderLinePredictionGames();
+  ["nextPredictionsPage", "nextPredictionsPageTop"].forEach((id) => {
+    byId(id)?.addEventListener("click", () => {
+      const pageCount = Math.max(Math.ceil(jogos.length / PREDICTION_PAGE_SIZE), 1);
+      currentPredictionPage = Math.min(currentPredictionPage + 1, pageCount - 1);
+      renderLinePredictionGames();
+    });
   });
 }
 
