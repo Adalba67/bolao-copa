@@ -272,9 +272,11 @@ function gameRound(game) {
 }
 
 function formatGameDate(value) {
-  return String(value || "-")
-    .replace("T", " H ")
-    .replace(/:00(?:\.000)?(?:Z)?$/, "");
+  const text = String(value || "");
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}:\d{2})/);
+  if (!match) return text || "-";
+  const [, year, month, day, time] = match;
+  return `${day}/${month}/${year} H ${time}`;
 }
 
 function officialResultFor(gameId) {
