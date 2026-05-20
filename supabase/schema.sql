@@ -266,9 +266,11 @@ as $$
   limit 1;
 $$;
 
+drop function if exists public.change_admin_password(text, text, text);
+
 create or replace function public.change_admin_password(
-  p_login text,
   p_current_password text,
+  p_login text,
   p_new_password text
 )
 returns void
