@@ -417,6 +417,8 @@ function checkSession() {
   }
   populateParticipantForms();
   updatePredictionModeLock();
+  renderLinePredictionGames();
+  renderLineFinalPrediction();
   renderMyScore();
 }
 
@@ -1744,6 +1746,8 @@ function populateParticipantForms() {
   if (!participant) return;
   const name = participantDisplayName(participant);
   byId("lineParticipantName").value = name;
+  renderLinePredictionGames();
+  renderLineFinalPrediction();
 }
 
 async function boot() {
