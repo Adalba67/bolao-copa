@@ -701,7 +701,10 @@ function updatePredictionModeLock() {
   setSectionControlsDisabled("palpitesLinha", lockedByDate);
 
   if (lockedByDate) {
-    setFeedback(["linePredictionsFeedback", "linePredictionsFeedbackTop"], "A Copa ja começou. A edição de palpites está bloqueada.");
+    setFeedback(
+      ["linePredictionsFeedback", "linePredictionsFeedbackTop"],
+      "A partir de 11/06/2026 não será mais permitida alteração nos placares dos palpites."
+    );
   } else if (byId("linePredictionsFeedback").textContent.includes("bloqueada")) {
     setFeedback(["linePredictionsFeedback", "linePredictionsFeedbackTop"], "");
   }
@@ -973,6 +976,10 @@ function existingPredictionFor(gameId) {
   );
 }
 
+function predictionInputValue(existing, field) {
+  return existing ? existing[field] : "";
+}
+
 function selectTeamByKey(selectId, value) {
   const select = byId(selectId);
   const matchingOption = [...select.options].find((option) => teamKey(option.value) === teamKey(value));
@@ -1044,12 +1051,12 @@ function renderLinePredictionGames() {
           <div class="line-score-inputs">
             <label>
               ${teamName(game.time_casa)}
-              <input id="linePredHome-${game.id_jogo}" type="number" min="0" value="" />
+              <input id="linePredHome-${game.id_jogo}" type="number" min="0" value="${predictionInputValue(existing, "palpite_casa")}" />
             </label>
             <span>x</span>
             <label>
               ${teamName(game.time_fora)}
-              <input id="linePredAway-${game.id_jogo}" type="number" min="0" value="" />
+              <input id="linePredAway-${game.id_jogo}" type="number" min="0" value="${predictionInputValue(existing, "palpite_fora")}" />
             </label>
           </div>
         </td>
@@ -1283,9 +1290,12 @@ function participantForNewPrediction(nameInputId, feedbackId) {
 }
 
 function buildMatchPredictions(participant, source) {
-  return currentPageGames().map((game, index) => {
+  return currentPageGames().reduce((items, game, index) => {
+    const homeInput = byId(`${source}Home-${game.id_jogo}`).value;
+    const awayInput = byId(`${source}Away-${game.id_jogo}`).value;
+    if (homeInput === "" && awayInput === "") return items;
     const existing = existingPredictionFor(game.id_jogo);
-    return {
+    items.push({
       id_palpite: existing ? existing.id_palpite : String(palpites.length + index + 1),
       company_id: activeCompanyId(),
       company_name: companyDisplayName(),
@@ -1294,26 +1304,27 @@ function buildMatchPredictions(participant, source) {
       id_jogo: game.id_jogo,
       time_casa: game.time_casa,
       time_fora: game.time_fora,
-      palpite_casa: Number(byId(`${source}Home-${game.id_jogo}`).value || 0),
-      palpite_fora: Number(byId(`${source}Away-${game.id_jogo}`).value || 0),
+      palpite_casa: Number(homeInput),
+      palpite_fora: Number(awayInput),
       pontos_obtidos: 0,
       criterio_pontuacao: "",
-    };
-  });
+    });
+    return items;
+  }, []);
 }
 
 function validateMatchPredictionInputs(source, feedbackId) {
   const missingGame = currentPageGames().find((game) => {
     const home = byId(`${source}Home-${game.id_jogo}`).value;
     const away = byId(`${source}Away-${game.id_jogo}`).value;
-    return home === "" || away === "";
+    return (home === "" && away !== "") || (home !== "" && away === "");
   });
 
   if (!missingGame) return true;
 
   setFeedback(
     [feedbackId, "linePredictionsFeedbackTop"],
-    `Preencha o palpite completo do jogo ${missingGame.id_jogo} antes de salvar.`
+    `Preencha os dois placares do jogo ${missingGame.id_jogo} antes de salvar.`
   );
   return false;
 }
@@ -1381,6 +1392,13 @@ async function addLinePredictions() {
   }
   if (!validateMatchPredictionInputs("linePred", "linePredictionsFeedback")) return;
   const matchPredictions = buildMatchPredictions(participant, "linePred");
+  if (!matchPredictions.length) {
+    setFeedback(
+      ["linePredictionsFeedback", "linePredictionsFeedbackTop"],
+      "Altere ou preencha pelo menos um jogo antes de salvar."
+    );
+    return;
+  }
   const finalPrediction = buildFinalPrediction(participant, "linePred");
   if (hasRepeatedFinalTeams(finalPrediction)) {
     setFeedback(["linePredictionsFeedback", "linePredictionsFeedbackTop"], "Selecione quatro seleções diferentes para a fase final.");
