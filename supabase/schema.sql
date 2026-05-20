@@ -31,12 +31,12 @@ alter table public.admins alter column id set default extensions.gen_random_uuid
 alter table public.admins add column if not exists login text;
 alter table public.admins add column if not exists password_hash text;
 alter table public.admins alter column login set default 'adm';
-alter table public.admins alter column password_hash set default extensions.crypt('12345', extensions.gen_salt('bf'));
+alter table public.admins alter column password_hash set default extensions.crypt(extensions.gen_random_uuid()::text, extensions.gen_salt('bf'));
 
 update public.admins
 set
   login = coalesce(login, 'admin-' || left(id::text, 8)),
-  password_hash = coalesce(password_hash, extensions.crypt('12345', extensions.gen_salt('bf')))
+  password_hash = coalesce(password_hash, extensions.crypt(extensions.gen_random_uuid()::text, extensions.gen_salt('bf')))
 where login is null or password_hash is null;
 
 alter table public.admins alter column login set not null;
@@ -266,6 +266,60 @@ as $$
   limit 1;
 $$;
 
+create or replace function public.change_admin_password(
+  p_login text,
+  p_current_password text,
+  p_new_password text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if nullif(trim(p_new_password), '') is null or length(p_new_password) < 6 then
+    raise exception 'A nova senha deve ter pelo menos 6 caracteres.';
+  end if;
+
+  update public.admins a
+  set
+    password_hash = extensions.crypt(p_new_password, extensions.gen_salt('bf')),
+    updated_at = now()
+  where lower(a.login) = lower(p_login)
+    and a.password_hash = extensions.crypt(p_current_password, a.password_hash);
+
+  if not found then
+    raise exception 'Senha atual invalida.';
+  end if;
+end;
+$$;
+
+create or replace function public.reset_admin_password_by_service(
+  p_login text,
+  p_new_password text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if nullif(trim(p_new_password), '') is null or length(p_new_password) < 6 then
+    raise exception 'A nova senha deve ter pelo menos 6 caracteres.';
+  end if;
+
+  update public.admins a
+  set
+    password_hash = extensions.crypt(p_new_password, extensions.gen_salt('bf')),
+    updated_at = now()
+  where lower(a.login) = lower(p_login);
+
+  if not found then
+    raise exception 'Administrador nao encontrado.';
+  end if;
+end;
+$$;
+
 create or replace function public.get_current_company()
 returns table (
   id uuid,
@@ -344,7 +398,7 @@ begin
   values (
     p_company_id,
     'adm',
-    extensions.crypt('12345', extensions.gen_salt('bf')),
+    extensions.crypt(extensions.gen_random_uuid()::text, extensions.gen_salt('bf')),
     p_name_type,
     p_name,
     p_sheet_name,
@@ -656,8 +710,10 @@ grant select on public.ranking to anon, authenticated;
 revoke select on public.admins from anon;
 grant select, insert, update on public.admins to authenticated;
 grant execute on function public.authenticate_admin(text, text) to anon, authenticated;
+grant execute on function public.change_admin_password(text, text, text) to anon, authenticated;
 grant execute on function public.get_current_company() to anon, authenticated;
 grant execute on function public.save_admin_profile(text, text, text, text, text, text, text, text) to anon, authenticated;
+grant execute on function public.reset_admin_password_by_service(text, text) to service_role;
 grant update on public.jogos to authenticated;
 grant update on public.jogos to anon;
 grant insert, update on public.resultado_final to authenticated;
@@ -683,7 +739,7 @@ insert into public.admins (
 values (
   'sem-empresa',
   'adm',
-  extensions.crypt('12345', extensions.gen_salt('bf')),
+  extensions.crypt(extensions.gen_random_uuid()::text, extensions.gen_salt('bf')),
   'Nome fantasia',
   'Empresa nao configurada',
   'Empresa nao configurada',

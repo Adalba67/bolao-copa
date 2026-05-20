@@ -153,6 +153,17 @@ export async function signOutAdmin() {
   return Promise.resolve();
 }
 
+export async function changeAdminPassword(currentPassword, newPassword) {
+  const client = await getSupabaseClient();
+  const { error } = await client.rpc("change_admin_password", {
+    p_login: "adm",
+    p_current_password: currentPassword,
+    p_new_password: newPassword,
+  });
+
+  if (error) throw new Error(formatSupabaseError(error, "Falha ao alterar senha ADM."));
+}
+
 export async function saveAdminProfile(profile) {
   const client = await getSupabaseClient();
   const { error } = await client.rpc("save_admin_profile", {

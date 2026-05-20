@@ -7,7 +7,7 @@ O Bolao Copa e uma aplicacao web estatica para cadastrar palpites, lancar result
 ## Acesso
 
 - Login: `ADM`
-- Senha: `12345`
+- Senha: definida no Supabase e alterada pelo menu ADM
 
 ## Modulos da tela
 

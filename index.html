@@ -157,6 +157,28 @@
             </div>
             <p id="companyFeedback" class="feedback" aria-live="polite"></p>
           </div>
+          <div class="panel form-panel">
+            <h3>Senha do ADM</h3>
+            <p>Altere a senha do administrador. A nova senha sera salva no Supabase apenas como hash.</p>
+            <div class="final-grid">
+              <label>
+                Senha atual
+                <input id="adminCurrentPassword" type="password" autocomplete="current-password" />
+              </label>
+              <label>
+                Nova senha
+                <input id="adminNewPassword" type="password" autocomplete="new-password" />
+              </label>
+              <label>
+                Confirmar nova senha
+                <input id="adminNewPasswordConfirm" type="password" autocomplete="new-password" />
+              </label>
+            </div>
+            <div class="actions-row">
+              <button id="changeAdminPasswordButton" type="button">Alterar senha ADM</button>
+            </div>
+            <p id="adminPasswordFeedback" class="feedback" aria-live="polite"></p>
+          </div>
         </section>
 
         <section id="jogos" class="section">

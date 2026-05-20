@@ -37,7 +37,7 @@ Login ADM:
 
 ```text
 adm
-12345
+<senha definida no Supabase>
 ```
 
 ## Como testar

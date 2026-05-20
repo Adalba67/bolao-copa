@@ -1,4 +1,5 @@
 ﻿import {
+  changeAdminPassword,
   getCurrentCompany,
   loadBolaoData,
   saveAdminProfile,
@@ -651,6 +652,32 @@ function setupCompanyAdmin() {
     }
 
     byId("companyFeedback").textContent = "Cadastro ADM salvo no Supabase. Os dados desta empresa estão isolados.";
+  });
+
+  byId("changeAdminPasswordButton")?.addEventListener("click", async () => {
+    const currentPassword = byId("adminCurrentPassword").value;
+    const newPassword = byId("adminNewPassword").value;
+    const confirmPassword = byId("adminNewPasswordConfirm").value;
+
+    if (currentUser?.role !== "admin") {
+      byId("adminPasswordFeedback").textContent = "Entre como ADM para alterar a senha.";
+      return;
+    }
+
+    if (newPassword.length < 6 || newPassword !== confirmPassword) {
+      byId("adminPasswordFeedback").textContent = "Informe senhas iguais com pelo menos 6 caracteres.";
+      return;
+    }
+
+    try {
+      await changeAdminPassword(currentPassword, newPassword);
+      byId("adminCurrentPassword").value = "";
+      byId("adminNewPassword").value = "";
+      byId("adminNewPasswordConfirm").value = "";
+      byId("adminPasswordFeedback").textContent = "Senha ADM alterada com sucesso.";
+    } catch (error) {
+      byId("adminPasswordFeedback").textContent = error.message;
+    }
   });
 
   byId("syncSheetsButton")?.addEventListener("click", syncGoogleSheets);

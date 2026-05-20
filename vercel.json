@@ -40,6 +40,10 @@
       "dest": "/api/config.js"
     },
     {
+      "src": "/api/reset-admin-password",
+      "dest": "/api/reset-admin-password.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/$1"
     }

@@ -437,7 +437,7 @@ function setupAuth() {
     const user = byId("username").value.trim();
     const password = byId("password").value;
 
-    if (user.toUpperCase() === "ADM" && password === "12345") {
+    if (false) {
       sessionStorage.setItem("bolao-user", JSON.stringify({ role: "admin", name: "ADM" }));
       byId("loginError").textContent = "";
       checkSession();
