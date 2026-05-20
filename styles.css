@@ -741,11 +741,17 @@ th {
 
 @media (max-width: 900px) {
   .app-view {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
   }
 
   .sidebar {
+    order: 2;
     position: static;
+  }
+
+  .content {
+    order: 1;
   }
 
   .metrics,
