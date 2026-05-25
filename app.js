@@ -24,6 +24,7 @@ let currentPredictionPage = 0;
 let currentGamesPage = 0;
 let pendingPasswordParticipantId = null;
 let companyProfile = null;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const byId = (id) => document.getElementById(id);
 const setFeedback = (ids, message) => {
@@ -235,6 +236,25 @@ function digitsOnly(value) {
   return String(value || "").replace(/\D/g, "");
 }
 
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isValidEmail(value) {
+  return EMAIL_PATTERN.test(normalizeEmail(value));
+}
+
+async function postJson(path, payload) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Falha na operação.");
+  return data;
+}
+
 function loginForParticipant(firstName, phone) {
   const first = String(firstName || "")
     .trim()
@@ -312,6 +332,7 @@ async function syncCurrentCompany() {
     googleSheetId: company.googleSheetId,
     webhook_url: company.webhook_url,
     logo_data_url: company.logo_data_url,
+    email: company.email || "",
     updated_at: company.updated_at,
   };
   updateCompanyLabels();
@@ -335,6 +356,7 @@ function updateCompanyLabels() {
   if (companyProfile) {
     byId("companyNameType").value = companyProfile.name_type;
     byId("companyName").value = companyProfile.name;
+    byId("adminEmail").value = companyProfile.email || "";
   }
 }
 
@@ -401,7 +423,8 @@ function checkSession() {
   byId("loginView").classList.toggle("hidden", logged);
   byId("appView").classList.toggle("hidden", !logged);
   if (!logged) return;
-  byId("userChip").textContent = currentUser.role === "admin" ? "ADM" : currentUser.name;
+  const chipName = currentUser.role === "admin" ? "ADM" : currentUser.name;
+  byId("userChip").textContent = currentUser.email ? `${chipName} | ${currentUser.email}` : chipName;
   document.body.classList.toggle("participant-session", currentUser.role === "participant");
   document.querySelectorAll(".admin-only").forEach((item) => {
     item.classList.toggle("hidden", currentUser.role !== "admin");
@@ -423,15 +446,26 @@ function checkSession() {
 }
 
 function setupAuth() {
+  const resetToken = new URLSearchParams(window.location.search).get("reset_token");
+  if (resetToken) {
+    byId("loginForm").classList.add("hidden");
+    byId("resetPasswordForm").classList.remove("hidden");
+    byId("resetToken").value = resetToken;
+  }
+
   byId("showRegisterButton").addEventListener("click", () => {
     byId("loginForm").classList.add("hidden");
     byId("registerForm").classList.remove("hidden");
     byId("changePasswordForm").classList.add("hidden");
+    byId("resetRequestForm").classList.add("hidden");
+    byId("resetPasswordForm").classList.add("hidden");
   });
 
   byId("backToLoginButton").addEventListener("click", () => {
     byId("registerForm").classList.add("hidden");
     byId("changePasswordForm").classList.add("hidden");
+    byId("resetRequestForm").classList.add("hidden");
+    byId("resetPasswordForm").classList.add("hidden");
     byId("loginForm").classList.remove("hidden");
   });
 
@@ -440,34 +474,36 @@ function setupAuth() {
     const user = byId("username").value.trim();
     const password = byId("password").value;
 
-    if (user.toLowerCase() === "adm") {
-      try {
-        const { admin } = await signInAdmin(user, password);
-        if (admin) {
-          companyProfile = {
-            id: admin.company_id,
-            name_type: admin.name_type,
-            name: admin.name,
-            sheet_name: admin.sheet_name,
-            spreadsheet_id: admin.spreadsheet_id,
-            googleSheetId: admin.google_sheet_id,
-            webhook_url: admin.webhook_url,
-            logo_data_url: admin.logo_data_url,
-            updated_at: admin.updated_at,
-          };
-          updateCompanyLabels();
-        }
-        sessionStorage.setItem("bolao-user", JSON.stringify({ role: "admin", name: admin?.name || "ADM" }));
+    try {
+      const { admin } = await signInAdmin(user, password);
+      if (admin) {
+        companyProfile = {
+          id: admin.company_id,
+          name_type: admin.name_type,
+          name: admin.name,
+          sheet_name: admin.sheet_name,
+          spreadsheet_id: admin.spreadsheet_id,
+          googleSheetId: admin.google_sheet_id,
+          webhook_url: admin.webhook_url,
+          logo_data_url: admin.logo_data_url,
+          email: admin.email || "",
+          updated_at: admin.updated_at,
+        };
+        updateCompanyLabels();
+        sessionStorage.setItem("bolao-user", JSON.stringify({ role: "admin", name: admin?.name || "ADM", email: admin?.email || "" }));
         byId("loginError").textContent = "";
         checkSession();
         return;
-      } catch (error) {
-        byId("loginError").textContent = error.message;
-        return;
       }
+    } catch (error) {
+      byId("loginError").textContent = error.message;
+      return;
     }
 
-    const participant = participantes.find((item) => item.login === user);
+    const normalizedUserEmail = normalizeEmail(user);
+    const participant = participantes.find((item) =>
+      item.login === user || (item.email && normalizeEmail(item.email) === normalizedUserEmail)
+    );
     if (participant && participantPasswordMatches(participant, password)) {
       companyProfile = {
         id: participant.company_id || activeCompanyId(),
@@ -488,6 +524,7 @@ function setupAuth() {
       sessionStorage.setItem("bolao-user", JSON.stringify({
         role: "participant",
         name: participantDisplayName(participant),
+        email: participant.email || "",
         participantId: participant.id_participante,
       }));
       byId("loginError").textContent = "";
@@ -525,6 +562,7 @@ function setupAuth() {
     sessionStorage.setItem("bolao-user", JSON.stringify({
       role: "participant",
       name: participantDisplayName(participant),
+      email: participant.email || "",
       participantId: participant.id_participante,
     }));
     pendingPasswordParticipantId = null;
@@ -538,12 +576,13 @@ function setupAuth() {
     const firstName = byId("registerFirstName").value.trim();
     const lastName = byId("registerLastName").value.trim();
     const phone = byId("registerPhone").value.trim();
+    const email = normalizeEmail(byId("registerEmail").value);
     const password = byId("registerPassword").value;
     const passwordConfirm = byId("registerPasswordConfirm").value;
     const phoneDigits = digitsOnly(phone);
 
-    if (!firstName || !lastName || phoneDigits.length < 3) {
-      byId("registerFeedback").textContent = "Informe nome, sobrenome e telefone com pelo menos 3 numeros.";
+    if (!firstName || !lastName || phoneDigits.length < 3 || !isValidEmail(email)) {
+      byId("registerFeedback").textContent = "Informe nome, sobrenome, telefone e um e-mail valido.";
       return;
     }
 
@@ -555,6 +594,10 @@ function setupAuth() {
     const login = loginForParticipant(firstName, phone);
     if (participantes.some((participant) => participant.login === login)) {
       byId("registerFeedback").textContent = `Login ${login} ja cadastrado. Ajuste o telefone ou nome.`;
+      return;
+    }
+    if (participantes.some((participant) => normalizeEmail(participant.email) === email)) {
+      byId("registerFeedback").textContent = "E-mail ja cadastrado para participante.";
       return;
     }
 
@@ -573,6 +616,7 @@ function setupAuth() {
       nome: firstName,
       sobrenome: lastName,
       telefone: phone,
+      email,
       login,
       password_token: passwordToken(password),
       must_change_password: false,
@@ -600,6 +644,58 @@ function setupAuth() {
     checkSession();
     activateSection("dashboard");
   });
+
+  byId("showResetPasswordButton").addEventListener("click", () => {
+    byId("loginForm").classList.add("hidden");
+    byId("registerForm").classList.add("hidden");
+    byId("changePasswordForm").classList.add("hidden");
+    byId("resetPasswordForm").classList.add("hidden");
+    byId("resetRequestForm").classList.remove("hidden");
+  });
+
+  byId("backToLoginFromResetButton").addEventListener("click", () => {
+    byId("resetRequestForm").classList.add("hidden");
+    byId("resetPasswordForm").classList.add("hidden");
+    byId("loginForm").classList.remove("hidden");
+  });
+
+  byId("resetRequestForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const email = normalizeEmail(byId("resetEmail").value);
+    if (!isValidEmail(email)) {
+      byId("resetFeedback").textContent = "Informe um e-mail valido.";
+      return;
+    }
+    try {
+      await postJson("/api/request-password-reset", { email });
+      byId("resetFeedback").textContent = "Se o e-mail existir, enviaremos as instrucoes de recuperacao.";
+    } catch (error) {
+      byId("resetFeedback").textContent = error.message;
+    }
+  });
+
+  byId("resetPasswordForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const token = byId("resetToken").value;
+    const password = byId("resetNewPassword").value;
+    const confirm = byId("resetNewPasswordConfirm").value;
+    if (password.length < 6 || password !== confirm) {
+      byId("resetPasswordFeedback").textContent = "Informe senhas iguais com pelo menos 6 caracteres.";
+      return;
+    }
+    try {
+      await postJson("/api/reset-password", { token, newPassword: password });
+      byId("resetPasswordFeedback").textContent = "Senha alterada. Entre novamente.";
+      byId("resetNewPassword").value = "";
+      byId("resetNewPasswordConfirm").value = "";
+      window.history.replaceState({}, "", window.location.pathname);
+      byId("resetPasswordForm").classList.add("hidden");
+      byId("loginForm").classList.remove("hidden");
+      byId("loginError").textContent = "Senha alterada. Entre novamente.";
+    } catch (error) {
+      byId("resetPasswordFeedback").textContent = error.message;
+    }
+  });
 }
 
 function setupNavigation() {
@@ -615,8 +711,13 @@ function setupNavigation() {
 function setupCompanyAdmin() {
   byId("saveCompanyButton").addEventListener("click", async () => {
     const name = byId("companyName").value.trim();
+    const email = normalizeEmail(byId("adminEmail").value);
     if (!name) {
       byId("companyFeedback").textContent = "Informe o nome da empresa ou responsável.";
+      return;
+    }
+    if (!isValidEmail(email)) {
+      byId("companyFeedback").textContent = "Informe um e-mail valido para o ADM.";
       return;
     }
 
@@ -638,6 +739,7 @@ function setupCompanyAdmin() {
       googleSheetId: companyProfile?.googleSheetId || "",
       webhook_url: companyProfile?.webhook_url || "",
       logo_data_url: logoDataUrl,
+      email,
       updated_at: new Date().toISOString(),
     };
     try {
@@ -1574,9 +1676,13 @@ function renderParticipantsSheet() {
       <td>${participant.nome || participant.apelido}</td>
       <td>${participant.sobrenome || "-"}</td>
       <td>${participant.telefone || "-"}</td>
+      <td>
+        <input class="table-input" type="email" value="${participant.email || ""}" data-participant-email="${participant.id_participante}" placeholder="email@dominio.com" />
+      </td>
       <td>${participant.login || "-"}</td>
       <td>${participant.data_cadastro || "-"}</td>
       <td>
+        <button class="small-table-button" type="button" data-save-email="${participant.id_participante}">Salvar e-mail</button>
         ${participant.login
           ? `<button class="small-table-button" type="button" data-reset-password="${participant.id_participante}">Resetar senha</button>`
           : "-"}
@@ -1652,6 +1758,30 @@ function exportParticipantsToGoogleSheets() {
 
 function setupParticipantPasswordReset() {
   byId("participantsSheetTable").addEventListener("click", async (event) => {
+    const saveEmailButton = event.target.closest("[data-save-email]");
+    if (saveEmailButton) {
+      const participantId = saveEmailButton.dataset.saveEmail;
+      const input = byId("participantsSheetTable").querySelector(`[data-participant-email="${participantId}"]`);
+      const email = normalizeEmail(input?.value);
+      const participant = participantes.find((item) => item.id_participante === participantId);
+      if (!participant) return;
+      if (!isValidEmail(email)) {
+        byId("participantsSheetFeedback").textContent = "Informe um e-mail valido para o participante.";
+        return;
+      }
+      if (participantes.some((item) => item.id_participante !== participantId && normalizeEmail(item.email) === email)) {
+        byId("participantsSheetFeedback").textContent = "E-mail ja cadastrado em outro participante.";
+        return;
+      }
+      try {
+        await updateParticipant(participantId, { email });
+        byId("participantsSheetFeedback").textContent = "E-mail do participante salvo.";
+      } catch (error) {
+        byId("participantsSheetFeedback").textContent = error.message;
+      }
+      return;
+    }
+
     const button = event.target.closest("[data-reset-password]");
     if (!button) return;
 

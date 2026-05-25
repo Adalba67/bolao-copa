@@ -13,13 +13,14 @@
           <span class="eyebrow">Bolao Copa</span>
           <h1>Acesso</h1>
           <label>
-            Login
+            Login ou e-mail
             <input id="username" autocomplete="username" required />
           </label>
           <label>
             Senha
             <input id="password" type="password" autocomplete="current-password" />
           </label>
+          <button id="showResetPasswordButton" class="small-link-button" type="button">Esqueci minha senha</button>
           <button id="showRegisterButton" class="small-link-button" type="button">Criar conta</button>
           <button type="submit">Entrar</button>
           <p id="loginError" class="error" aria-live="polite"></p>
@@ -39,6 +40,10 @@
           <label>
             Telefone com DDD
             <input id="registerPhone" inputmode="tel" autocomplete="tel" required />
+          </label>
+          <label>
+            E-mail
+            <input id="registerEmail" type="email" autocomplete="email" required />
           </label>
           <label>
             Senha
@@ -67,6 +72,34 @@
           </label>
           <button type="submit">Salvar nova senha</button>
           <p id="changePasswordFeedback" class="feedback" aria-live="polite"></p>
+        </form>
+
+        <form id="resetRequestForm" class="login-card hidden">
+          <span class="eyebrow">Recuperacao</span>
+          <h1>Recuperar senha</h1>
+          <label>
+            E-mail cadastrado
+            <input id="resetEmail" type="email" autocomplete="email" required />
+          </label>
+          <button type="submit">Enviar instrucoes</button>
+          <button id="backToLoginFromResetButton" class="small-link-button" type="button">Voltar ao login</button>
+          <p id="resetFeedback" class="feedback" aria-live="polite"></p>
+        </form>
+
+        <form id="resetPasswordForm" class="login-card hidden">
+          <span class="eyebrow">Recuperacao</span>
+          <h1>Nova senha</h1>
+          <input id="resetToken" type="hidden" />
+          <label>
+            Nova senha
+            <input id="resetNewPassword" type="password" autocomplete="new-password" required />
+          </label>
+          <label>
+            Confirmar nova senha
+            <input id="resetNewPasswordConfirm" type="password" autocomplete="new-password" required />
+          </label>
+          <button type="submit">Salvar senha</button>
+          <p id="resetPasswordFeedback" class="feedback" aria-live="polite"></p>
         </form>
       </div>
     </main>
@@ -146,6 +179,10 @@
               <label>
                 Nome da empresa ou responsável
                 <input id="companyName" placeholder="Ex: Bolão da Firma" />
+              </label>
+              <label>
+                E-mail do ADM
+                <input id="adminEmail" type="email" autocomplete="email" placeholder="adm@empresa.com" />
               </label>
               <label>
                 Logotipo da empresa (.jpg)
@@ -350,6 +387,7 @@
                   <th>Nome</th>
                   <th>Sobrenome</th>
                   <th>Telefone</th>
+                  <th>E-mail</th>
                   <th>Login</th>
                   <th>Cadastro</th>
                   <th>Ação</th>

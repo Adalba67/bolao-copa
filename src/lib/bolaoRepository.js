@@ -43,6 +43,7 @@ function participantPayload(participant) {
     nome: participant.nome,
     sobrenome: participant.sobrenome,
     telefone: participant.telefone,
+    email: participant.email,
     login: participant.login,
     password_token: participant.password_token,
     must_change_password: Boolean(participant.must_change_password),
@@ -88,6 +89,7 @@ function normalizeCompany(admin) {
     id: admin.company_id,
     name_type: admin.name_type,
     name: admin.name,
+    email: admin.email,
     sheet_name: admin.sheet_name,
     spreadsheet_id: admin.spreadsheet_id,
     googleSheetId: admin.google_sheet_id,
@@ -141,7 +143,7 @@ export async function signInAdmin(login, password) {
   if (error) throw new Error(formatSupabaseError(error, "Login de administrador invalido."));
 
   const admin = Array.isArray(data) ? data[0] : data;
-  if (!admin) throw new Error("Login de administrador invalido.");
+  if (!admin) return { user: null, admin: null };
 
   return {
     user: null,
@@ -170,6 +172,7 @@ export async function saveAdminProfile(profile) {
     p_company_id: profile.id,
     p_name_type: profile.name_type,
     p_name: profile.name,
+    p_email: profile.email,
     p_sheet_name: profile.sheet_name,
     p_spreadsheet_id: profile.spreadsheet_id,
     p_google_sheet_id: profile.googleSheetId,

@@ -32,6 +32,7 @@ alter table public.admins add column if not exists login text;
 alter table public.admins add column if not exists password_hash text;
 alter table public.admins alter column login set default 'adm';
 alter table public.admins alter column password_hash set default extensions.crypt(extensions.gen_random_uuid()::text, extensions.gen_salt('bf'));
+alter table public.admins add column if not exists email text;
 
 update public.admins
 set
@@ -41,6 +42,12 @@ where login is null or password_hash is null;
 
 alter table public.admins alter column login set not null;
 alter table public.admins alter column password_hash set not null;
+
+alter table public.admins drop constraint if exists admins_email_format_check;
+alter table public.admins
+  add constraint admins_email_format_check check (
+    email is null or email ~* '^[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}$'
+  ) not valid;
 
 create table if not exists public.jogos (
   id_jogo integer primary key,
@@ -76,6 +83,7 @@ create table if not exists public.participantes (
   nome text not null,
   sobrenome text,
   telefone text,
+  email text,
   login text not null,
   password_token text,
   must_change_password boolean not null default false,
@@ -86,6 +94,25 @@ create table if not exists public.participantes (
   updated_at timestamptz not null default now(),
   unique (company_id, id_participante),
   unique (company_id, login)
+);
+
+alter table public.participantes add column if not exists email text;
+alter table public.participantes drop constraint if exists participantes_email_format_check;
+alter table public.participantes
+  add constraint participantes_email_format_check check (
+    email is null or email ~* '^[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}$'
+  ) not valid;
+
+create table if not exists public.password_reset_tokens (
+  id uuid primary key default extensions.gen_random_uuid(),
+  token text not null unique,
+  email text not null,
+  user_type text not null check (user_type in ('admin', 'participant')),
+  company_id text,
+  id_participante integer,
+  expires_at timestamptz not null,
+  used_at timestamptz,
+  created_at timestamptz not null default now()
 );
 
 create table if not exists public.palpites (
@@ -208,8 +235,12 @@ alter table public.ranking
 
 create index if not exists idx_admins_user_id on public.admins(user_id);
 create unique index if not exists idx_admins_login on public.admins(login);
+create unique index if not exists idx_admins_email on public.admins(lower(email)) where email is not null;
 create index if not exists idx_participantes_company on public.participantes(company_id);
 create index if not exists idx_participantes_login on public.participantes(company_id, login);
+create unique index if not exists idx_participantes_company_email on public.participantes(company_id, lower(email)) where email is not null;
+create index if not exists idx_password_reset_tokens_token on public.password_reset_tokens(token) where used_at is null;
+create index if not exists idx_password_reset_tokens_email on public.password_reset_tokens(lower(email), expires_at desc);
 create index if not exists idx_jogos_grupo on public.jogos(grupo);
 create index if not exists idx_palpites_company_participant on public.palpites(company_id, id_participante);
 create index if not exists idx_palpites_jogo on public.palpites(id_jogo);
@@ -235,6 +266,7 @@ returns table (
   id uuid,
   company_id text,
   login text,
+  email text,
   name_type text,
   name text,
   sheet_name text,
@@ -252,6 +284,7 @@ as $$
     a.id,
     a.company_id,
     a.login,
+    a.email,
     a.name_type,
     a.name,
     a.sheet_name,
@@ -261,7 +294,7 @@ as $$
     a.logo_data_url,
     a.updated_at
   from public.admins a
-  where lower(a.login) = lower(p_login)
+  where (lower(a.login) = lower(p_login) or lower(a.email) = lower(p_login))
     and a.password_hash = extensions.crypt(p_password, a.password_hash)
   limit 1;
 $$;
@@ -322,11 +355,109 @@ begin
 end;
 $$;
 
+create or replace function public.create_password_reset_token(p_email text)
+returns table (
+  token text,
+  email text,
+  user_type text,
+  expires_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_email text := lower(trim(p_email));
+  v_token text := encode(extensions.gen_random_bytes(32), 'hex');
+  v_expires_at timestamptz := now() + interval '30 minutes';
+begin
+  if v_email is null or v_email !~* '^[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}$' then
+    raise exception 'email invalido';
+  end if;
+
+  insert into public.password_reset_tokens (token, email, user_type, company_id, id_participante, expires_at)
+  select v_token, v_email, 'admin', a.company_id, null, v_expires_at
+  from public.admins a
+  where lower(a.email) = v_email
+  limit 1;
+
+  if found then
+    return query select v_token, v_email, 'admin'::text, v_expires_at;
+    return;
+  end if;
+
+  insert into public.password_reset_tokens (token, email, user_type, company_id, id_participante, expires_at)
+  select v_token, v_email, 'participant', p.company_id, p.id_participante, v_expires_at
+  from public.participantes p
+  where lower(p.email) = v_email
+    and p.ativo = true
+  limit 1;
+
+  if found then
+    return query select v_token, v_email, 'participant'::text, v_expires_at;
+  end if;
+end;
+$$;
+
+create or replace function public.consume_password_reset_token(
+  p_token text,
+  p_new_password text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_reset public.password_reset_tokens%rowtype;
+begin
+  if nullif(trim(p_new_password), '') is null or length(p_new_password) < 6 then
+    raise exception 'A nova senha deve ter pelo menos 6 caracteres.';
+  end if;
+
+  select *
+  into v_reset
+  from public.password_reset_tokens
+  where token = p_token
+    and used_at is null
+    and expires_at > now()
+  limit 1
+  for update;
+
+  if not found then
+    raise exception 'Token de recuperacao invalido ou expirado.';
+  end if;
+
+  if v_reset.user_type = 'admin' then
+    update public.admins
+    set
+      password_hash = extensions.crypt(p_new_password, extensions.gen_salt('bf')),
+      updated_at = now()
+    where company_id = v_reset.company_id
+      and lower(email) = v_reset.email;
+  else
+    update public.participantes
+    set
+      password_token = encode(convert_to('bolao:' || p_new_password, 'UTF8'), 'base64'),
+      must_change_password = false,
+      updated_at = now()
+    where company_id = v_reset.company_id
+      and id_participante = v_reset.id_participante
+      and lower(email) = v_reset.email;
+  end if;
+
+  update public.password_reset_tokens
+  set used_at = now()
+  where id = v_reset.id;
+end;
+$$;
+
 create or replace function public.get_current_company()
 returns table (
   id uuid,
   company_id text,
   login text,
+  email text,
   name_type text,
   name text,
   sheet_name text,
@@ -344,6 +475,7 @@ as $$
     a.id,
     a.company_id,
     a.login,
+    a.email,
     a.name_type,
     a.name,
     a.sheet_name,
@@ -358,11 +490,13 @@ as $$
 $$;
 
 drop function if exists public.save_admin_profile(text, text, text, text, text, text, text, text);
+drop function if exists public.save_admin_profile(text, text, text, text, text, text, text, text, text);
 
 create or replace function public.save_admin_profile(
   p_company_id text,
   p_name_type text,
   p_name text,
+  p_email text,
   p_sheet_name text,
   p_spreadsheet_id text,
   p_google_sheet_id text,
@@ -383,9 +517,14 @@ begin
     raise exception 'name obrigatorio';
   end if;
 
+  if nullif(trim(p_email), '') is null or p_email !~* '^[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}$' then
+    raise exception 'email obrigatorio';
+  end if;
+
   insert into public.admins (
     company_id,
     login,
+    email,
     password_hash,
     name_type,
     name,
@@ -400,6 +539,7 @@ begin
   values (
     p_company_id,
     'adm',
+    lower(trim(p_email)),
     extensions.crypt(extensions.gen_random_uuid()::text, extensions.gen_salt('bf')),
     p_name_type,
     p_name,
@@ -414,6 +554,7 @@ begin
   on conflict (login) do update
   set
     company_id = excluded.company_id,
+    email = excluded.email,
     name_type = excluded.name_type,
     name = excluded.name,
     sheet_name = excluded.sheet_name,
@@ -472,6 +613,7 @@ alter table public.palpites enable row level security;
 alter table public.fase_final enable row level security;
 alter table public.resultado_final enable row level security;
 alter table public.ranking enable row level security;
+alter table public.password_reset_tokens enable row level security;
 
 drop policy if exists "admins_select_own_profile" on public.admins;
 drop policy if exists "admins_insert_own_profile" on public.admins;
@@ -714,8 +856,10 @@ grant select, insert, update on public.admins to authenticated;
 grant execute on function public.authenticate_admin(text, text) to anon, authenticated;
 grant execute on function public.change_admin_password(text, text, text) to anon, authenticated;
 grant execute on function public.get_current_company() to anon, authenticated;
-grant execute on function public.save_admin_profile(text, text, text, text, text, text, text, text) to anon, authenticated;
+grant execute on function public.save_admin_profile(text, text, text, text, text, text, text, text, text) to anon, authenticated;
 grant execute on function public.reset_admin_password_by_service(text, text) to service_role;
+grant execute on function public.create_password_reset_token(text) to service_role;
+grant execute on function public.consume_password_reset_token(text, text) to service_role;
 grant update on public.jogos to authenticated;
 grant update on public.jogos to anon;
 grant insert, update on public.resultado_final to authenticated;
