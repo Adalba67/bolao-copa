@@ -44,6 +44,14 @@
       "dest": "/api/reset-admin-password.js"
     },
     {
+      "src": "/api/request-password-reset",
+      "dest": "/api/request-password-reset.js"
+    },
+    {
+      "src": "/api/reset-password",
+      "dest": "/api/reset-password.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/$1"
     }
