@@ -100,17 +100,17 @@ async function getGames(gameIds) {
 }
 
 async function upsertMatchPredictions(predictions) {
-  return supabaseFetch("/rest/v1/palpites?on_conflict=company_id,id_participante,id_jogo", {
+  return supabaseFetch("/rest/v1/palpites?on_conflict=company_id,id_participante,id_jogo&select=*", {
     method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates" },
+    headers: { Prefer: "resolution=merge-duplicates,return=representation" },
     body: JSON.stringify(predictions),
   });
 }
 
 async function upsertFinalPrediction(prediction) {
-  return supabaseFetch("/rest/v1/fase_final?on_conflict=company_id,id_participante", {
+  return supabaseFetch("/rest/v1/fase_final?on_conflict=company_id,id_participante&select=*", {
     method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates" },
+    headers: { Prefer: "resolution=merge-duplicates,return=representation" },
     body: JSON.stringify(prediction),
   });
 }
@@ -146,12 +146,19 @@ module.exports = async function handler(request, response) {
   const participantIds = new Set(matchPredictions.map((prediction) => String(prediction.id_participante)));
   if (finalPrediction?.id_participante) participantIds.add(String(finalPrediction.id_participante));
 
-  log(requestId, "request_received", {
-    companyId,
-    participantId,
-    matchPredictionCount: matchPredictions.length,
-    hasFinalPrediction: Boolean(finalPrediction),
-  });
+    log(requestId, "request_received", {
+      companyId,
+      participantId,
+      matchPredictionCount: matchPredictions.length,
+      hasFinalPrediction: Boolean(finalPrediction),
+      samplePrediction: matchPredictions[0]
+        ? {
+            id_jogo: matchPredictions[0].id_jogo,
+            palpite_casa: matchPredictions[0].palpite_casa,
+            palpite_fora: matchPredictions[0].palpite_fora,
+          }
+        : null,
+    });
 
   if (!companyId || !participantId || !matchPredictions.length || !finalPrediction || participantIds.size !== 1) {
     log(requestId, "invalid_payload", { companyId: Boolean(companyId), participantId: Boolean(participantId), participantIds: [...participantIds] });
@@ -184,10 +191,26 @@ module.exports = async function handler(request, response) {
 
     const matchPayload = matchPredictions.map((prediction) => predictionPayload(prediction, participant));
     const finalPayload = finalPredictionPayload(finalPrediction, participant);
-    await upsertMatchPredictions(matchPayload);
-    await upsertFinalPrediction(finalPayload);
-    log(requestId, "predictions_saved", { participantId, matchPredictionCount: matchPayload.length });
-    json(response, 200, { ok: true });
+    log(requestId, "payload_ready", {
+      participantId,
+      companyId,
+      games: matchPayload.map((prediction) => ({
+        id_jogo: prediction.id_jogo,
+        palpite_casa: prediction.palpite_casa,
+        palpite_fora: prediction.palpite_fora,
+      })),
+    });
+    const savedMatchPredictions = await upsertMatchPredictions(matchPayload);
+    const savedFinalPredictions = await upsertFinalPrediction(finalPayload);
+    log(requestId, "predictions_saved", {
+      participantId,
+      matchPredictionCount: Array.isArray(savedMatchPredictions) ? savedMatchPredictions.length : 0,
+    });
+    json(response, 200, {
+      ok: true,
+      matchPredictions: Array.isArray(savedMatchPredictions) ? savedMatchPredictions : [],
+      finalPrediction: Array.isArray(savedFinalPredictions) ? savedFinalPredictions[0] : null,
+    });
   } catch (error) {
     log(requestId, "save_failed", { message: error.message, stack: error.stack });
     json(response, 500, { error: "Falha ao salvar palpites.", details: error.message, requestId });

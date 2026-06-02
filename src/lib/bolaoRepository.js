@@ -36,6 +36,13 @@ function normalizePrediction(prediction) {
   };
 }
 
+function normalizeFinalPrediction(prediction) {
+  return {
+    ...prediction,
+    id_participante: asString(prediction.id_participante),
+  };
+}
+
 function participantDisplayNameForRepository(participant) {
   return [participant.nome, participant.sobrenome].filter(Boolean).join(" ") || participant.apelido || participant.nome;
 }
@@ -139,7 +146,7 @@ export async function loadBolaoData() {
     selecoes: teams.data || [],
     participantes: (participants.data || []).map(normalizeParticipant),
     palpites: (predictions.data || []).map(normalizePrediction),
-    faseFinal: finalPredictions.data || [],
+    faseFinal: (finalPredictions.data || []).map(normalizeFinalPrediction),
     resultadoFinal: finalResult.data || [],
   };
 }
@@ -356,9 +363,23 @@ export async function savePredictionSetToSupabase(matchPredictions, finalPredict
     body: JSON.stringify({ matchPredictions, finalPrediction }),
   });
   const data = await response.json().catch(() => ({}));
+  console.info("[savePredictionSetToSupabase] resposta do endpoint", {
+    status: response.status,
+    ok: response.ok,
+    savedMatches: Array.isArray(data.matchPredictions) ? data.matchPredictions.length : 0,
+    hasFinalPrediction: Boolean(data.finalPrediction),
+    requestId: data.requestId,
+  });
   if (!response.ok) {
     throw new Error(data.details ? `${data.error} ${data.details}` : data.error || "Falha ao salvar palpites.");
   }
+  if (Array.isArray(data.matchPredictions)) {
+    data.matchPredictions = data.matchPredictions.map(normalizePrediction);
+  }
+  if (data.finalPrediction) {
+    data.finalPrediction = normalizeFinalPrediction(data.finalPrediction);
+  }
+  return data;
 }
 
 export async function saveMatchResults(results, finalResult) {

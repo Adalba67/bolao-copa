@@ -105,7 +105,8 @@
     </main>
 
     <main id="appView" class="app-view hidden">
-      <aside class="sidebar">
+      <aside id="appSidebar" class="sidebar">
+        <button id="mobileMenuCloseButton" class="mobile-menu-close" type="button" aria-label="Fechar menu">×</button>
         <div class="brand">
           <strong>Bolao Copa</strong>
           <span id="companyMenuName">Empresa não configurada</span>
@@ -125,9 +126,11 @@
           <button id="logoutButton" class="nav-item logout" type="button">Sair</button>
         </nav>
       </aside>
+      <button id="mobileMenuOverlay" class="mobile-menu-overlay" type="button" aria-label="Fechar menu"></button>
 
       <section class="content">
         <header class="topbar">
+          <button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-controls="appSidebar" aria-expanded="false">☰</button>
           <div class="logo-spot top-logo" aria-label="Logo Bolao da Copa">
             <img id="companyLogoImage" class="company-logo hidden" alt="Logotipo da empresa" />
             <div class="logo-text">

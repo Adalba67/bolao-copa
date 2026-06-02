@@ -40,6 +40,9 @@ const setFeedback = (ids, message) => {
     if (element) element.textContent = message;
   });
 };
+const debugPredictions = (step, details = {}) => {
+  console.info("[predictions-debug]", step, details);
+};
 const GOOGLE_APPS_SCRIPT_WEBHOOK_URL = "";
 const DEFAULT_GOOGLE_SHEETS_SPREADSHEET_ID = "1wEG1rdXUuRC00YkRtuQeuOEPeZYyijFu8Sj_nHu2SXQ";
 const SIMULATION_LIMIT = 10;
@@ -398,7 +401,7 @@ async function updateParticipant(participantId, changes) {
 }
 
 async function persistPredictions(matchPredictions, finalPrediction) {
-  await savePredictionSetToSupabase(matchPredictions, finalPrediction);
+  return savePredictionSetToSupabase(matchPredictions, finalPrediction);
 }
 
 function participantDisplayName(participant) {
@@ -503,6 +506,10 @@ function checkSession() {
   byId("loginView").classList.toggle("hidden", logged);
   byId("appView").classList.toggle("hidden", !logged);
   document.body.classList.toggle("participant-session", logged && currentUser.role === "participant");
+  if (!logged) {
+    document.body.classList.remove("mobile-menu-open");
+    byId("mobileMenuButton")?.setAttribute("aria-expanded", "false");
+  }
   if (!logged) return;
   const chipName = currentUser.role === "admin" ? "ADM" : currentUser.name;
   byId("userChip").textContent = chipName;
@@ -820,12 +827,30 @@ async function setupAuth() {
 }
 
 function setupNavigation() {
+  const setMobileMenuOpen = (open) => {
+    document.body.classList.toggle("mobile-menu-open", open);
+    byId("mobileMenuButton")?.setAttribute("aria-expanded", String(open));
+  };
+
   document.querySelectorAll(".nav-item").forEach((button) => {
     button.addEventListener("click", () => {
       if (!button.dataset.section) return;
       if (button.disabled) return;
       activateSection(button.dataset.section);
+      setMobileMenuOpen(false);
     });
+  });
+  byId("mobileMenuButton")?.addEventListener("click", () => {
+    setMobileMenuOpen(!document.body.classList.contains("mobile-menu-open"));
+  });
+  byId("mobileMenuCloseButton")?.addEventListener("click", () => {
+    setMobileMenuOpen(false);
+  });
+  byId("mobileMenuOverlay")?.addEventListener("click", () => {
+    setMobileMenuOpen(false);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setMobileMenuOpen(false);
   });
 }
 
@@ -1620,13 +1645,41 @@ function hasRepeatedFinalTeams(finalPrediction) {
 }
 
 async function savePredictionSet(participant, matchPredictions, finalPrediction) {
-  await persistPredictions(matchPredictions, finalPrediction);
-  palpites = palpites.filter((prediction) => !matchPredictions.some((item) =>
+  debugPredictions("saving_payload", {
+    currentUser,
+    participant: {
+      id_participante: participant.id_participante,
+      company_id: participant.company_id,
+      email: participant.email || "",
+    },
+    activeCompanyId: activeCompanyId(),
+    matches: matchPredictions.map((prediction) => ({
+      id_jogo: prediction.id_jogo,
+      palpite_casa: prediction.palpite_casa,
+      palpite_fora: prediction.palpite_fora,
+      company_id: prediction.company_id,
+      id_participante: prediction.id_participante,
+    })),
+    finalPrediction,
+  });
+  const saved = await persistPredictions(matchPredictions, finalPrediction);
+  const savedMatchPredictions = saved?.matchPredictions?.length ? saved.matchPredictions : matchPredictions;
+  const savedFinalPrediction = saved?.finalPrediction || finalPrediction;
+  debugPredictions("save_response", {
+    savedMatches: savedMatchPredictions.map((prediction) => ({
+      id_palpite: prediction.id_palpite,
+      id_jogo: prediction.id_jogo,
+      id_participante: prediction.id_participante,
+      company_id: prediction.company_id,
+    })),
+    savedFinalPrediction,
+  });
+  palpites = palpites.filter((prediction) => !savedMatchPredictions.some((item) =>
     item.id_participante === prediction.id_participante && item.id_jogo === prediction.id_jogo
   ));
-  faseFinal = faseFinal.filter((prediction) => prediction.id_participante !== finalPrediction.id_participante);
-  palpites.push(...matchPredictions);
-  faseFinal.push(finalPrediction);
+  faseFinal = faseFinal.filter((prediction) => prediction.id_participante !== savedFinalPrediction.id_participante);
+  palpites.push(...savedMatchPredictions);
+  faseFinal.push(savedFinalPrediction);
   renderPredictionFilters();
   renderDashboard();
   renderPredictions();
@@ -1658,6 +1711,19 @@ async function addLinePredictions() {
   }
   if (!validateMatchPredictionInputs("linePred", "linePredictionsFeedback")) return;
   const matchPredictions = buildMatchPredictions(participant, "linePred");
+  debugPredictions("inputs_collected", {
+    loggedParticipantId: activeParticipantId(),
+    selectedParticipantId: participant.id_participante,
+    activeCompanyId: activeCompanyId(),
+    currentPage: currentPredictionPage + 1,
+    games: currentPageGames().map((game) => ({
+      id_jogo: game.id_jogo,
+      editable: canEditGamePrediction(game),
+      homeValue: byId(`linePredHome-${game.id_jogo}`)?.value || "",
+      awayValue: byId(`linePredAway-${game.id_jogo}`)?.value || "",
+    })),
+    matchPredictionCount: matchPredictions.length,
+  });
   if (!matchPredictions.length) {
     const pageHasOpenGames = currentPageGames().some(canEditGamePrediction);
     setFeedback(
