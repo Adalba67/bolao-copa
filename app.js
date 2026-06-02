@@ -31,6 +31,7 @@ let currentPredictionPage = 0;
 let currentGamesPage = 0;
 let pendingPasswordParticipantId = null;
 let companyProfile = null;
+let dashboardOpenedFromMenu = false;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const byId = (id) => document.getElementById(id);
@@ -508,6 +509,8 @@ function checkSession() {
   document.body.classList.toggle("participant-session", logged && currentUser.role === "participant");
   if (!logged) {
     document.body.classList.remove("mobile-menu-open");
+    document.body.classList.remove("mobile-dashboard-collapsed");
+    dashboardOpenedFromMenu = false;
     byId("mobileMenuButton")?.setAttribute("aria-expanded", "false");
   }
   if (!logged) return;
@@ -530,6 +533,7 @@ function checkSession() {
   renderLinePredictionGames();
   renderLineFinalPrediction();
   renderMyScore();
+  updateMobileDashboardVisibility();
 }
 
 async function setupAuth() {
@@ -826,6 +830,16 @@ async function setupAuth() {
   });
 }
 
+function isMobileViewport() {
+  return window.matchMedia("(max-width: 900px)").matches;
+}
+
+function updateMobileDashboardVisibility() {
+  const activeSectionId = document.querySelector(".section.active")?.id || "dashboard";
+  const collapsed = Boolean(currentUser && isMobileViewport() && activeSectionId === "dashboard" && !dashboardOpenedFromMenu);
+  document.body.classList.toggle("mobile-dashboard-collapsed", collapsed);
+}
+
 function setupNavigation() {
   const setMobileMenuOpen = (open) => {
     document.body.classList.toggle("mobile-menu-open", open);
@@ -836,7 +850,9 @@ function setupNavigation() {
     button.addEventListener("click", () => {
       if (!button.dataset.section) return;
       if (button.disabled) return;
+      dashboardOpenedFromMenu = button.dataset.section === "dashboard";
       activateSection(button.dataset.section);
+      updateMobileDashboardVisibility();
       setMobileMenuOpen(false);
     });
   });
@@ -852,6 +868,7 @@ function setupNavigation() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") setMobileMenuOpen(false);
   });
+  window.addEventListener("resize", updateMobileDashboardVisibility);
 }
 
 function setupCompanyAdmin() {
@@ -957,6 +974,7 @@ function activateSection(sectionId) {
   const button = document.querySelector(`.nav-item[data-section="${sectionId}"]`);
   if (button && !button.classList.contains("hidden")) button.classList.add("active");
   byId(sectionId).classList.add("active");
+  updateMobileDashboardVisibility();
 }
 
 function setSectionControlsDisabled(sectionId, disabled) {
@@ -1328,24 +1346,29 @@ function renderLinePredictionGames() {
       return `<tr>
         <td>${game.id_jogo}</td>
         <td>${formatGameDate(game.data_hora)}</td>
-        <td>${game.grupo}</td>
-        <td>${teamLabel(game.time_casa)} x ${teamLabel(game.time_fora)}</td>
+        <td class="prediction-group-column">${game.grupo}</td>
+        <td class="prediction-teams-column">${teamLabel(game.time_casa)} x ${teamLabel(game.time_fora)}</td>
         <td>
+          <div class="mobile-prediction-teams">${teamLabel(game.time_casa)} x ${teamLabel(game.time_fora)}</div>
           <div class="line-score-inputs">
             <label>
-              ${teamName(game.time_casa)}
+              <span class="score-input-team-name">${teamName(game.time_casa)}</span>
               <input id="linePredHome-${game.id_jogo}" type="number" min="0" value="${predictionInputValue(existing, "palpite_casa")}" ${lockedAttribute} ${lockedTitle} />
             </label>
             <span>x</span>
             <label>
-              ${teamName(game.time_fora)}
+              <span class="score-input-team-name">${teamName(game.time_fora)}</span>
               <input id="linePredAway-${game.id_jogo}" type="number" min="0" value="${predictionInputValue(existing, "palpite_fora")}" ${lockedAttribute} ${lockedTitle} />
             </label>
           </div>
           ${locked ? `<span class="prediction-lock-note">Encerrado</span>` : ""}
+          <div class="mobile-prediction-meta">
+            <span>Resultado oficial: ${officialResultFor(game.id_jogo)}</span>
+            <span>Pontos: ${calculated}</span>
+          </div>
         </td>
-        <td class="score">${officialResultFor(game.id_jogo)}</td>
-        <td class="score">${calculated}</td>
+        <td class="score prediction-result-column">${officialResultFor(game.id_jogo)}</td>
+        <td class="score prediction-points-column">${calculated}</td>
       </tr>`;
     })
     .join("");

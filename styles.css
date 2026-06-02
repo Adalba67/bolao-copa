@@ -593,6 +593,14 @@ nav {
   min-width: 920px;
 }
 
+.mobile-prediction-teams {
+  display: none;
+}
+
+.mobile-prediction-meta {
+  display: none;
+}
+
 .line-score-inputs {
   align-items: end;
   display: grid;
@@ -884,10 +892,24 @@ th {
 
   .topbar {
     grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 10px;
+    margin-bottom: 12px;
   }
 
   .top-logo {
+    box-shadow: none;
+    gap: 4px;
+    grid-template-columns: 1fr;
+    min-height: 0;
     min-width: 0;
+    overflow: visible;
+    padding: 8px 10px;
+  }
+
+  .topbar .company-logo,
+  .top-logo::before,
+  .top-logo::after {
+    display: none;
   }
 
   .line-actions,
@@ -905,12 +927,157 @@ th {
     grid-template-columns: 1fr 1fr;
   }
 
-  .logo-mark {
-    font-size: 34px;
+  .top-logo .logo-mark {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 15px;
+    line-height: 1.05;
+    text-shadow: none;
   }
 
   .top-logo span {
-    font-size: 24px;
+    font-size: 11px;
+    line-height: 1.15;
+    margin-top: 2px;
+  }
+
+  body.mobile-dashboard-collapsed #dashboard {
+    display: none;
+  }
+
+  body.mobile-dashboard-collapsed .content {
+    min-height: 100dvh;
+  }
+
+  body.mobile-dashboard-collapsed .topbar {
+    align-content: center;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    min-height: calc(100dvh - 28px);
+    position: relative;
+  }
+
+  body.mobile-dashboard-collapsed .mobile-menu-button {
+    left: 0;
+    position: absolute;
+    top: 0;
+  }
+
+  body.mobile-dashboard-collapsed .user-chip {
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+
+  body.mobile-dashboard-collapsed .top-logo {
+    box-shadow: 0 20px 48px rgba(23, 32, 42, 0.18);
+    gap: 10px;
+    justify-items: center;
+    max-width: 330px;
+    min-height: 220px;
+    overflow: hidden;
+    padding: 24px;
+    width: 100%;
+  }
+
+  body.mobile-dashboard-collapsed .topbar .company-logo {
+    display: block;
+    height: 74px;
+    width: 74px;
+  }
+
+  body.mobile-dashboard-collapsed .top-logo::before,
+  body.mobile-dashboard-collapsed .top-logo::after {
+    display: block;
+  }
+
+  body.mobile-dashboard-collapsed .top-logo .logo-mark {
+    color: #ffd36b;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 34px;
+    line-height: 1;
+    text-shadow:
+      0 1px 0 #b66c12,
+      0 2px 0 #9b5310,
+      0 3px 0 #713709,
+      0 12px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  body.mobile-dashboard-collapsed .top-logo span {
+    font-size: 16px;
+    line-height: 1.1;
+    margin-top: 6px;
+  }
+
+  .line-predictions-table {
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+    width: 100%;
+  }
+
+  .line-predictions-table thead {
+    display: none;
+  }
+
+  .line-predictions-table tr {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    display: grid;
+    gap: 4px;
+    padding: 10px;
+  }
+
+  .line-predictions-table td {
+    border-bottom: 0;
+    padding: 4px 0;
+  }
+
+  .line-predictions-table td:first-child,
+  .line-predictions-table td:nth-child(2) {
+    color: var(--muted);
+    display: inline-flex;
+    font-size: 12px;
+    padding: 0;
+  }
+
+  .line-predictions-table .prediction-group-column,
+  .line-predictions-table .prediction-teams-column,
+  .line-predictions-table .prediction-result-column,
+  .line-predictions-table .prediction-points-column {
+    display: none;
+  }
+
+  .mobile-prediction-teams {
+    color: var(--text);
+    display: block;
+    font-size: 13px;
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+
+  .score-input-team-name {
+    display: none;
+  }
+
+  .line-score-inputs {
+    align-items: center;
+    justify-content: center;
+    justify-items: center;
+  }
+
+  .line-score-inputs input {
+    text-align: center;
+  }
+
+  .mobile-prediction-meta {
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    display: grid;
+    font-size: 12px;
+    gap: 4px;
+    margin-top: 10px;
+    padding-top: 8px;
   }
 }
 
@@ -964,12 +1131,21 @@ th {
     flex-wrap: wrap;
   }
 
-  .logo-mark {
-    font-size: 28px;
+  .top-logo .logo-mark {
+    font-size: 14px;
   }
 
   .top-logo {
     grid-template-columns: 1fr;
+  }
+
+  .line-predictions-table {
+    min-width: 0;
+  }
+
+  .line-score-inputs {
+    gap: 6px;
+    grid-template-columns: 72px auto 72px;
   }
 
   .company-logo {
@@ -978,6 +1154,14 @@ th {
   }
 
   .top-logo span {
-    font-size: 20px;
+    font-size: 10px;
+  }
+
+  body.mobile-dashboard-collapsed .top-logo .logo-mark {
+    font-size: 30px;
+  }
+
+  body.mobile-dashboard-collapsed .top-logo span {
+    font-size: 15px;
   }
 }
