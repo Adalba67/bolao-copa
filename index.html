@@ -122,7 +122,7 @@
           <button class="nav-item" data-section="ranking">Ranking</button>
           <button class="nav-item participant-only" data-section="meuDesempenho">Minha Pontuação</button>
           <button class="nav-item admin-only" data-section="participantesPlanilha">Participantes</button>
-          <button class="nav-item admin-only" data-section="lancamento">Resultados</button>
+          <button class="nav-item admin-only" data-section="lancamento">Salvar Resultados</button>
           <button id="logoutButton" class="nav-item logout" type="button">Sair</button>
         </nav>
       </aside>
@@ -131,8 +131,7 @@
       <section class="content">
         <header class="topbar">
           <button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-controls="appSidebar" aria-expanded="false">☰</button>
-          <div class="logo-spot top-logo" aria-label="Logo Bolao da Copa">
-            <img id="companyLogoImage" class="company-logo hidden" alt="Logotipo da empresa" />
+          <div class="logo-spot top-logo" aria-label="Bolao da Copa">
             <div class="logo-text">
               <div class="logo-mark">BOLAO DA COPA</div>
               <span id="companyTopName">Empresa não configurada</span>
@@ -186,10 +185,6 @@
               <label>
                 E-mail do ADM
                 <input id="adminEmail" type="email" autocomplete="email" placeholder="adm@empresa.com" />
-              </label>
-              <label>
-                Logotipo da empresa (.jpg)
-                <input id="companyLogoFile" type="file" accept=".jpg,.jpeg,.jpj,image/jpeg" />
               </label>
             </div>
             <div class="actions-row">
@@ -406,7 +401,7 @@
           <div class="section-head">
             <div>
               <h3>Resultados da simulação</h3>
-              <p>Digite 10 resultados para entrar no cálculo final da simulação.</p>
+              <p>Digite os resultados oficiais dos jogos. Preencha apenas partidas já encerradas.</p>
             </div>
             <div class="save-actions">
               <button id="manualCalculateButton" type="button">Aplicar resultados</button>
@@ -427,25 +422,25 @@
               Buscar automaticamente quando a Copa começar
             </label>
 
-            <h3>10 resultados dos jogos</h3>
+            <h3>Resultados dos jogos</h3>
             <div id="manualGamesGrid" class="manual-grid"></div>
 
             <h3>Resultado final</h3>
             <div class="final-grid">
               <label>
-                Campeão real
+                Campeão Real
                 <input id="realFinal1" value="Brasil" />
               </label>
               <label>
-                Vice real
+                Vice Campeão
                 <input id="realFinal2" value="França" />
               </label>
               <label>
-                Terceiro real
+                Terceiro Lugar
                 <input id="realFinal3" value="Argentina" />
               </label>
               <label>
-                Quarto real
+                Quarto Lugar
                 <input id="realFinal4" value="Inglaterra" />
               </label>
             </div>

@@ -1,11 +1,20 @@
 __pycache__/
+**/__pycache__/
 *.py[cod]
 .pytest_cache/
 pytest-cache-files-*/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 
 node_modules/
 dist/
 build/
+.cache/
+tmp/
+temp/
 
 .env
 .env.*
@@ -14,4 +23,5 @@ build/
 .vscode/
 
 .vercel
+.vercel/
 .env*.local

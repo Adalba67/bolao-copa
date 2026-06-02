@@ -305,33 +305,10 @@ function companyDisplayName() {
 function updateCompanyLabels() {
   byId("companyMenuName").textContent = companyDisplayName();
   byId("companyTopName").textContent = companyDisplayName();
-  const logoImage = byId("companyLogoImage");
-  logoImage.classList.toggle("hidden", !companyProfile?.logo_data_url);
-  if (companyProfile?.logo_data_url) {
-    logoImage.src = companyProfile.logo_data_url;
-  } else {
-    logoImage.removeAttribute("src");
-  }
   if (companyProfile) {
     byId("companyNameType").value = companyProfile.name_type;
     byId("companyName").value = companyProfile.name;
   }
-}
-
-function readCompanyLogoFile() {
-  const file = byId("companyLogoFile").files[0];
-  if (!file) return Promise.resolve(companyProfile?.logo_data_url || "");
-  const isJpeg = file.type === "image/jpeg" || /\.(jpe?g|jpj)$/i.test(file.name);
-  if (!isJpeg) {
-    return Promise.reject(new Error("Anexe um arquivo JPG ou JPEG para o logotipo."));
-  }
-
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener("load", () => resolve(reader.result));
-    reader.addEventListener("error", () => reject(new Error("Não foi possível ler o arquivo do logotipo.")));
-    reader.readAsDataURL(file);
-  });
 }
 
 function resetCompanyRuntimeData() {
@@ -570,14 +547,6 @@ function setupCompanyAdmin() {
       return;
     }
 
-    let logoDataUrl = "";
-    try {
-      logoDataUrl = await readCompanyLogoFile();
-    } catch (error) {
-      byId("companyFeedback").textContent = error.message;
-      return;
-    }
-
     const previousId = activeCompanyId();
     companyProfile = {
       id: slugify(name),
@@ -587,12 +556,11 @@ function setupCompanyAdmin() {
       spreadsheet_id: companyProfile?.spreadsheet_id || "",
       googleSheetId: companyProfile?.googleSheetId || "",
       webhook_url: companyProfile?.webhook_url || "",
-      logo_data_url: logoDataUrl,
+      logo_data_url: companyProfile?.logo_data_url || "",
       updated_at: new Date().toISOString(),
     };
     writeStoredObject(STORAGE_KEYS.company, companyProfile);
     updateCompanyLabels();
-    byId("companyLogoFile").value = "";
 
     if (previousId !== companyProfile.id) {
       resetCompanyRuntimeData();

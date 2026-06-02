@@ -342,34 +342,11 @@ function companyDisplayName() {
 function updateCompanyLabels() {
   byId("companyMenuName").textContent = companyDisplayName();
   byId("companyTopName").textContent = companyDisplayName();
-  const logoImage = byId("companyLogoImage");
-  logoImage.classList.toggle("hidden", !companyProfile?.logo_data_url);
-  if (companyProfile?.logo_data_url) {
-    logoImage.src = companyProfile.logo_data_url;
-  } else {
-    logoImage.removeAttribute("src");
-  }
   if (companyProfile) {
     byId("companyNameType").value = companyProfile.name_type;
     byId("companyName").value = companyProfile.name;
     byId("adminEmail").value = companyProfile.email || "";
   }
-}
-
-function readCompanyLogoFile() {
-  const file = byId("companyLogoFile").files[0];
-  if (!file) return Promise.resolve(companyProfile?.logo_data_url || "");
-  const isJpeg = file.type === "image/jpeg" || /\.(jpe?g|jpj)$/i.test(file.name);
-  if (!isJpeg) {
-    return Promise.reject(new Error("Anexe um arquivo JPG ou JPEG para o logotipo."));
-  }
-
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener("load", () => resolve(reader.result));
-    reader.addEventListener("error", () => reject(new Error("Não foi possível ler o arquivo do logotipo.")));
-    reader.readAsDataURL(file);
-  });
 }
 
 function resetCompanyRuntimeData() {
@@ -884,14 +861,6 @@ function setupCompanyAdmin() {
       return;
     }
 
-    let logoDataUrl = "";
-    try {
-      logoDataUrl = await readCompanyLogoFile();
-    } catch (error) {
-      byId("companyFeedback").textContent = error.message;
-      return;
-    }
-
     const previousId = activeCompanyId();
     companyProfile = {
       id: slugify(name),
@@ -901,14 +870,13 @@ function setupCompanyAdmin() {
       spreadsheet_id: companyProfile?.spreadsheet_id || "",
       googleSheetId: companyProfile?.googleSheetId || "",
       webhook_url: companyProfile?.webhook_url || "",
-      logo_data_url: logoDataUrl,
+      logo_data_url: companyProfile?.logo_data_url || "",
       email,
       updated_at: new Date().toISOString(),
     };
     try {
       await saveAdminProfile(companyProfile);
       updateCompanyLabels();
-      byId("companyLogoFile").value = "";
     } catch (error) {
       byId("companyFeedback").textContent = error.message;
       return;
@@ -1199,18 +1167,19 @@ function renderPredictionFilters() {
 
 function renderManualGames() {
   byId("manualGamesGrid").innerHTML = jogos
-    .slice(0, SIMULATION_LIMIT)
     .map((game) => {
+      const homeScore = game.placar_real_casa === "" ? "" : Number(game.placar_real_casa);
+      const awayScore = game.placar_real_fora === "" ? "" : Number(game.placar_real_fora);
       return `<article class="manual-game">
         <strong>${teamLabel(game.time_casa)} x ${teamLabel(game.time_fora)}</strong>
-        <span>Jogo ${game.id_jogo}</span>
+        <span>Jogo ${game.id_jogo} - ${formatGameDate(game.data_hora)}</span>
         <label>
           Resultado ${teamLabel(game.time_casa)}
-          <input id="realHome-${game.id_jogo}" type="number" min="0" value="0" />
+          <input id="realHome-${game.id_jogo}" type="number" min="0" value="${homeScore}" />
         </label>
         <label>
           Resultado ${teamLabel(game.time_fora)}
-          <input id="realAway-${game.id_jogo}" type="number" min="0" value="0" />
+          <input id="realAway-${game.id_jogo}" type="number" min="0" value="${awayScore}" />
         </label>
       </article>`;
     })
@@ -1450,12 +1419,31 @@ function calculateFinalStagePoints(prediction) {
 }
 
 async function applyManualResults() {
-  const results = jogos.slice(0, SIMULATION_LIMIT).map((game) => ({
-    id_jogo: game.id_jogo,
-    placar_real_casa: Number(byId(`realHome-${game.id_jogo}`).value || 0),
-    placar_real_fora: Number(byId(`realAway-${game.id_jogo}`).value || 0),
-    status_jogo: "finalizado",
-  }));
+  const partialGame = jogos.find((game) => {
+    const home = byId(`realHome-${game.id_jogo}`).value;
+    const away = byId(`realAway-${game.id_jogo}`).value;
+    return (home === "" && away !== "") || (home !== "" && away === "");
+  });
+  if (partialGame) {
+    setFeedback(
+      ["manualFeedback", "manualFeedbackTop"],
+      `Preencha os dois placares do jogo ${partialGame.id_jogo} ou deixe ambos em branco.`
+    );
+    return;
+  }
+
+  const results = jogos.reduce((items, game) => {
+    const home = byId(`realHome-${game.id_jogo}`).value;
+    const away = byId(`realAway-${game.id_jogo}`).value;
+    if (home === "" && away === "") return items;
+    items.push({
+      id_jogo: game.id_jogo,
+      placar_real_casa: Number(home),
+      placar_real_fora: Number(away),
+      status_jogo: "finalizado",
+    });
+    return items;
+  }, []);
 
   results.forEach((result) => {
     simulatedResults.set(String(result.id_jogo), {
@@ -1490,8 +1478,10 @@ async function applyManualResults() {
 
   renderGames();
   renderPredictions();
+  renderLinePredictionGames();
   renderRanking();
-  setFeedback(["manualFeedback", "manualFeedbackTop"], "Os 10 resultados foram salvos no Supabase.");
+  renderMyScore();
+  setFeedback(["manualFeedback", "manualFeedbackTop"], `${results.length} resultados foram salvos no Supabase.`);
 }
 
 async function fetchBallDontLieResults(options = {}) {
@@ -1506,7 +1496,7 @@ async function fetchBallDontLieResults(options = {}) {
 
   try {
     const response = await fetch(
-      "https://api.balldontlie.io/fifa/worldcup/v1/matches?seasons[]=2026&per_page=100",
+      "https://api.balldontlie.io/fifa/worldcup/v1/matches?seasons[]=2026&per_page=200",
       {
         headers: {
           Authorization: apiKey,
@@ -1525,7 +1515,7 @@ async function fetchBallDontLieResults(options = {}) {
     let imported = 0;
     const importedResults = [];
 
-    jogos.slice(0, SIMULATION_LIMIT).forEach((game) => {
+    jogos.forEach((game) => {
       const match = matchesByNumber.get(String(game.id_jogo));
       if (!match || match.home_score === null || match.away_score === null) return;
 
@@ -1558,12 +1548,14 @@ async function fetchBallDontLieResults(options = {}) {
 
     renderGames();
     renderPredictions();
+    renderLinePredictionGames();
     renderRanking();
+    renderMyScore();
     setFeedback(
       ["manualFeedback", "manualFeedbackTop"],
       imported
         ? `${imported} resultados importados da Ball Don't Lie.`
-        : "Nenhum dos 10 jogos possui placar disponível na Ball Don't Lie."
+        : "Nenhum jogo possui placar disponível na Ball Don't Lie."
     );
   } catch (error) {
     setFeedback(["manualFeedback", "manualFeedbackTop"], `Erro ao buscar Ball Don't Lie: ${error.message}`);

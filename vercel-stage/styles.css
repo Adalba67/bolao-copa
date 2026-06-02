@@ -326,19 +326,6 @@ nav {
   z-index: 1;
 }
 
-.company-logo {
-  aspect-ratio: 1;
-  background: #fff;
-  border: 2px solid rgba(255, 255, 255, 0.72);
-  border-radius: 8px;
-  height: 72px;
-  object-fit: contain;
-  padding: 6px;
-  position: relative;
-  width: 72px;
-  z-index: 1;
-}
-
 .logo-spot span {
   color: rgba(255, 255, 255, 0.84);
   font-size: 13px;
@@ -353,10 +340,12 @@ nav {
   align-items: center;
   flex: 1;
   gap: 18px;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: 1fr;
   justify-content: center;
+  justify-items: center;
   min-height: 96px;
   padding: 14px;
+  text-align: center;
 }
 
 .top-logo .logo-mark {
@@ -772,11 +761,6 @@ th {
 
   .top-logo {
     grid-template-columns: 1fr;
-  }
-
-  .company-logo {
-    height: 64px;
-    width: 64px;
   }
 
   .top-logo span {
