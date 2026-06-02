@@ -7,6 +7,16 @@ def test_jogo_normal_acerta_vencedor():
     assert criterio == "vencedor"
 
 
+def test_jogo_normal_nao_usa_pontuacao_do_brasil():
+    pontos_vencedor, criterio_vencedor = calcular_pontos_jogo(1, 0, 2, 1)
+    pontos_exato, criterio_exato = calcular_pontos_jogo(2, 1, 2, 1)
+
+    assert pontos_vencedor == 3
+    assert criterio_vencedor == "vencedor"
+    assert pontos_exato == 5
+    assert criterio_exato == "placar_exato"
+
+
 def test_empate():
     pontos, criterio = calcular_pontos_jogo(1, 1, 2, 2)
     assert pontos == 3

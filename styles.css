@@ -110,6 +110,34 @@ button:hover {
   padding: 6px 10px;
 }
 
+.access-status {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  justify-content: center;
+  min-width: 82px;
+  padding: 5px 8px;
+}
+
+.access-status.active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.access-status.blocked {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.prediction-lock-note {
+  color: #991b1b;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 6px;
+}
+
 .table-input {
   min-height: 34px;
   min-width: 210px;

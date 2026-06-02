@@ -4,11 +4,16 @@ function asString(value) {
   return value === null || value === undefined ? "" : String(value);
 }
 
+function asBoolean(value) {
+  return value === true || String(value).toLowerCase() === "true";
+}
+
 function normalizeParticipant(participant) {
   return {
     ...participant,
     id_participante: asString(participant.id_participante),
     ativo: participant.ativo === true || participant.ativo === "True" ? "True" : "False",
+    access_blocked: asBoolean(participant.access_blocked),
   };
 }
 
@@ -50,6 +55,7 @@ function participantPayload(participant) {
     apelido: participant.apelido,
     data_cadastro: participant.data_cadastro,
     ativo: participant.ativo === true || participant.ativo === "True",
+    access_blocked: asBoolean(participant.access_blocked),
   };
 }
 
@@ -257,6 +263,20 @@ export async function syncParticipantAuthUser({ companyId, participantId, email 
   return data;
 }
 
+export async function setParticipantAccessBlocked({ companyId, participantId, accessBlocked }) {
+  const response = await fetch("/api/set-participant-access", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ companyId, participantId, accessBlocked }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.details ? `${data.error} ${data.details}` : data.error || "Falha ao alterar acesso do participante.");
+  }
+  if (data.participant) data.participant = normalizeParticipant(data.participant);
+  return data;
+}
+
 export async function changeAdminPassword(currentPassword, newPassword) {
   const client = await getSupabaseClient();
   const { error } = await client.rpc("change_admin_password", {
@@ -324,37 +344,21 @@ async function getParticipantInCurrentCompany(participantId) {
 }
 
 export async function savePredictionSetToSupabase(matchPredictions, finalPrediction) {
-  const client = await getSupabaseClient();
   const predictionParticipantIds = new Set(matchPredictions.map((prediction) => String(prediction.id_participante)));
   predictionParticipantIds.add(String(finalPrediction.id_participante));
   if (predictionParticipantIds.size !== 1) {
     throw new Error("Os palpites devem pertencer a um unico participante.");
   }
 
-  const { company, participant } = await getParticipantInCurrentCompany(finalPrediction.id_participante);
-  const matchPredictionsWithCompany = matchPredictions.map((prediction) => ({
-    ...prediction,
-    company_id: company.id,
-    company_name: company.name,
-    id_participante: participant.id_participante,
-    apelido: participantDisplayNameForRepository(participant),
-  }));
-  const finalPredictionWithCompany = {
-    ...finalPrediction,
-    company_id: company.id,
-    company_name: company.name,
-    id_participante: participant.id_participante,
-    apelido: participantDisplayNameForRepository(participant),
-  };
-  const { error: predictionsError } = await client
-    .from("palpites")
-    .upsert(matchPredictionsWithCompany.map(predictionPayload), { onConflict: "company_id,id_participante,id_jogo" });
-  if (predictionsError) throw new Error(formatSupabaseError(predictionsError, "Falha ao salvar palpites."));
-
-  const { error: finalError } = await client
-    .from("fase_final")
-    .upsert(finalPredictionPayload(finalPredictionWithCompany), { onConflict: "company_id,id_participante" });
-  if (finalError) throw new Error(formatSupabaseError(finalError, "Falha ao salvar fase final."));
+  const response = await fetch("/api/save-predictions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ matchPredictions, finalPrediction }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.details ? `${data.error} ${data.details}` : data.error || "Falha ao salvar palpites.");
+  }
 }
 
 export async function saveMatchResults(results, finalResult) {

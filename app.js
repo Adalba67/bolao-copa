@@ -9,6 +9,7 @@
   saveRanking,
   prepareSupabasePasswordRecovery,
   requestSupabasePasswordReset,
+  setParticipantAccessBlocked,
   signInAdmin,
   signInWithAuth,
   signOutAdmin,
@@ -268,10 +269,6 @@ function participantPasswordMatches(participant, password) {
   return participant.password_token && participant.password_token === passwordToken(password);
 }
 
-function temporaryPassword() {
-  return `Bolao${Math.floor(100000 + Math.random() * 900000)}`;
-}
-
 function nextParticipantId() {
   return String(Math.max(...participantes.map((participant) => Number(participant.id_participante)), 0) + 1);
 }
@@ -431,10 +428,18 @@ function authRole(record) {
   return String(record?.role || record?.user_type || record?.profile_type || record?.type || "").toLowerCase();
 }
 
-function participantFromAuth(record, email) {
+function participantAccessBlocked(participant) {
+  return participant?.access_blocked === true || String(participant?.access_blocked).toLowerCase() === "true";
+}
+
+function participantCanAccess(participant) {
+  return Boolean(participant && participant.ativo === "True" && !participantAccessBlocked(participant));
+}
+
+function participantFromAuth(record, email, options = {}) {
   const participantId = record?.id_participante || record?.participant_id;
   return participantes.find((item) =>
-    item.ativo === "True" &&
+    (options.includeBlocked ? item.ativo === "True" : participantCanAccess(item)) &&
     ((participantId && String(item.id_participante) === String(participantId)) ||
       (email && item.email && normalizeEmail(item.email) === email))
   );
@@ -461,6 +466,10 @@ function setAdminSession(admin, authUser = null) {
 }
 
 function setParticipantSession(participant, authUser = null) {
+  if (!participantCanAccess(participant)) {
+    byId("loginError").textContent = "Acesso bloqueado. Fale com o ADM.";
+    return;
+  }
   companyProfile = {
     id: participant.company_id || activeCompanyId(),
     name: participant.company_name || companyDisplayName(),
@@ -482,13 +491,21 @@ function setParticipantSession(participant, authUser = null) {
 
 function checkSession() {
   currentUser = JSON.parse(sessionStorage.getItem("bolao-user") || "null");
+  if (currentUser?.role === "participant") {
+    const participant = participantes.find((item) => item.id_participante === currentUser.participantId);
+    if (!participantCanAccess(participant)) {
+      sessionStorage.removeItem("bolao-user");
+      currentUser = null;
+      byId("loginError").textContent = "Acesso bloqueado. Fale com o ADM.";
+    }
+  }
   const logged = Boolean(currentUser);
   byId("loginView").classList.toggle("hidden", logged);
   byId("appView").classList.toggle("hidden", !logged);
+  document.body.classList.toggle("participant-session", logged && currentUser.role === "participant");
   if (!logged) return;
   const chipName = currentUser.role === "admin" ? "ADM" : currentUser.name;
   byId("userChip").textContent = chipName;
-  document.body.classList.toggle("participant-session", currentUser.role === "participant");
   document.querySelectorAll(".admin-only").forEach((item) => {
     item.classList.toggle("hidden", currentUser.role !== "admin");
   });
@@ -552,8 +569,13 @@ async function setupAuth() {
     if (isValidEmail(user)) {
       try {
         const { user: authUser, linkedUser } = await signInWithAuth(normalizedUserEmail, password);
-        const authParticipant = participantFromAuth(linkedUser, normalizedUserEmail);
+        const authParticipant = participantFromAuth(linkedUser, normalizedUserEmail, { includeBlocked: true });
         if (authParticipant && !isAuthAdmin(linkedUser, normalizedUserEmail)) {
+          if (participantAccessBlocked(authParticipant)) {
+            await signOutSupabaseAuth().catch(() => {});
+            byId("loginError").textContent = "Acesso bloqueado. Fale com o ADM.";
+            return;
+          }
           if (authParticipant.must_change_password) {
             pendingPasswordParticipantId = authParticipant.id_participante;
             byId("loginForm").classList.add("hidden");
@@ -593,6 +615,10 @@ async function setupAuth() {
       item.login === user || (item.email && normalizeEmail(item.email) === normalizedUserEmail)
     );
     if (participant && participantPasswordMatches(participant, password)) {
+      if (participantAccessBlocked(participant)) {
+        byId("loginError").textContent = "Acesso bloqueado. Fale com o ADM.";
+        return;
+      }
       companyProfile = {
         id: participant.company_id || activeCompanyId(),
         name: participant.company_name || companyDisplayName(),
@@ -924,25 +950,14 @@ function setNavItemDisabled(sectionId, disabled) {
 }
 
 function updatePredictionModeLock() {
-  const lockedByDate = worldCupStarted();
-
-  setSectionControlsDisabled("palpitesLinha", lockedByDate);
-
-  if (lockedByDate) {
-    setFeedback(
-      ["linePredictionsFeedback", "linePredictionsFeedbackTop"],
-      "A partir de 11/06/2026 não será mais permitida alteração nos placares dos palpites."
-    );
-  } else if (byId("linePredictionsFeedback").textContent.includes("bloqueada")) {
-    setFeedback(["linePredictionsFeedback", "linePredictionsFeedbackTop"], "");
-  }
+  const finalStageLocked = worldCupStarted();
+  ["linePredFinal1", "linePredFinal2", "linePredFinal3", "linePredFinal4"].forEach((selectId) => {
+    const select = byId(selectId);
+    if (select) select.disabled = finalStageLocked;
+  });
 }
 
 function canEditPredictions() {
-  if (worldCupStarted()) {
-    updatePredictionModeLock();
-    return false;
-  }
   if (currentUser?.role !== "participant") {
     return currentUser?.role === "admin";
   }
@@ -973,6 +988,20 @@ function worldCupStarted() {
   const today = new Date();
   const startDate = new Date(`${WORLD_CUP_START_DATE}T00:00:00`);
   return today >= startDate;
+}
+
+function officialMatchDate(value) {
+  const text = String(value || "").trim();
+  if (!text) return null;
+  const normalized = text.replace(" ", "T");
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized);
+  const date = new Date(hasTimezone ? normalized : `${normalized}-03:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function canEditGamePrediction(game) {
+  const matchDate = officialMatchDate(game?.data_hora);
+  return Boolean(matchDate && Date.now() < matchDate.getTime());
 }
 
 function renderDashboard() {
@@ -1214,14 +1243,12 @@ function selectTeamByKey(selectId, value) {
   select.value = matchingOption ? matchingOption.value : select.options[0]?.value || "";
 }
 
-function defaultFinalTeam(value) {
-  return selecoes.find((team) => teamKey(team.selecao) === teamKey(value))?.selecao || selecoes[0]?.selecao || "";
-}
-
 function renderFinalPredictionOptions() {
-  const options = selecoes
+  const options = [
+    `<option value="">Selecione</option>`,
+    ...selecoes
     .map((team) => `<option value="${team.selecao}">${teamName(team.selecao)}</option>`)
-    .join("");
+  ].join("");
   ["linePredFinal1", "linePredFinal2", "linePredFinal3", "linePredFinal4"].forEach((selectId) => {
     byId(selectId).innerHTML = options;
   });
@@ -1236,17 +1263,17 @@ function updateFinalPredictionOptionLocks() {
     const currentValue = selectedById[selectId];
     [...byId(selectId).options].forEach((option) => {
       const optionValue = teamKey(option.value);
-      option.disabled = optionValue !== currentValue && Object.values(selectedById).includes(optionValue);
+      option.disabled = Boolean(optionValue) && optionValue !== currentValue && Object.values(selectedById).includes(optionValue);
     });
   });
 }
 
 function renderLineFinalPrediction() {
   const existing = existingFinalPredictionFor();
-  selectTeamByKey("linePredFinal1", existing?.palpite_1_lugar || defaultFinalTeam("Brazil"));
-  selectTeamByKey("linePredFinal2", existing?.palpite_2_lugar || defaultFinalTeam("France"));
-  selectTeamByKey("linePredFinal3", existing?.palpite_3_lugar || defaultFinalTeam("Argentina"));
-  selectTeamByKey("linePredFinal4", existing?.palpite_4_lugar || defaultFinalTeam("England"));
+  selectTeamByKey("linePredFinal1", existing?.palpite_1_lugar || "");
+  selectTeamByKey("linePredFinal2", existing?.palpite_2_lugar || "");
+  selectTeamByKey("linePredFinal3", existing?.palpite_3_lugar || "");
+  selectTeamByKey("linePredFinal4", existing?.palpite_4_lugar || "");
   updateFinalPredictionOptionLocks();
 }
 
@@ -1270,6 +1297,9 @@ function renderLinePredictionGames() {
       const existing = existingPredictionFor(game.id_jogo);
       const result = simulatedResults.get(game.id_jogo);
       const calculated = existing && result ? calculatePoints(existing, result).points : "-";
+      const locked = !canEditGamePrediction(game);
+      const lockedAttribute = locked ? "disabled" : "";
+      const lockedTitle = locked ? `title="Palpite bloqueado apos ${formatGameDate(game.data_hora)}"` : "";
       return `<tr>
         <td>${game.id_jogo}</td>
         <td>${formatGameDate(game.data_hora)}</td>
@@ -1279,14 +1309,15 @@ function renderLinePredictionGames() {
           <div class="line-score-inputs">
             <label>
               ${teamName(game.time_casa)}
-              <input id="linePredHome-${game.id_jogo}" type="number" min="0" value="${predictionInputValue(existing, "palpite_casa")}" />
+              <input id="linePredHome-${game.id_jogo}" type="number" min="0" value="${predictionInputValue(existing, "palpite_casa")}" ${lockedAttribute} ${lockedTitle} />
             </label>
             <span>x</span>
             <label>
               ${teamName(game.time_fora)}
-              <input id="linePredAway-${game.id_jogo}" type="number" min="0" value="${predictionInputValue(existing, "palpite_fora")}" />
+              <input id="linePredAway-${game.id_jogo}" type="number" min="0" value="${predictionInputValue(existing, "palpite_fora")}" ${lockedAttribute} ${lockedTitle} />
             </label>
           </div>
+          ${locked ? `<span class="prediction-lock-note">Encerrado</span>` : ""}
         </td>
         <td class="score">${officialResultFor(game.id_jogo)}</td>
         <td class="score">${calculated}</td>
@@ -1309,15 +1340,18 @@ function isBrazilGame(gameId) {
   return game && String(game.eh_jogo_do_brasil).toLowerCase() === "true";
 }
 
-function calculatePoints(prediction, result) {
+function scoreMatchPrediction(prediction, result, brazil = false) {
   const exact = Number(prediction.palpite_casa) === Number(result.placar_real_casa)
     && Number(prediction.palpite_fora) === Number(result.placar_real_fora);
   const winner = outcome(prediction.palpite_casa, prediction.palpite_fora) === outcome(result.placar_real_casa, result.placar_real_fora);
-  const brazil = isBrazilGame(prediction.id_jogo);
 
   if (exact) return { points: brazil ? 10 : 5, criteria: brazil ? "placar exato Brasil" : "placar exato" };
   if (winner) return { points: brazil ? 5 : 3, criteria: brazil ? "vencedor ou empate Brasil" : "vencedor ou empate" };
   return { points: 0, criteria: "perdeu" };
+}
+
+function calculatePoints(prediction, result) {
+  return scoreMatchPrediction(prediction, result, isBrazilGame(prediction.id_jogo));
 }
 
 function seededScore(seed) {
@@ -1359,6 +1393,7 @@ function calculateFinalStagePoints(prediction) {
 
   return predictedTop4.reduce((total, team, index) => {
     const normalizedTeam = teamKey(team);
+    if (!normalizedTeam) return total;
     const isInTop4 = actualTop4.some((actualTeam) => teamKey(actualTeam) === normalizedTeam);
     const exactPosition = teamKey(actualTop4[index]) === normalizedTeam;
     if (!isInTop4) return total;
@@ -1519,6 +1554,7 @@ function participantForNewPrediction(nameInputId, feedbackId) {
 
 function buildMatchPredictions(participant, source) {
   return currentPageGames().reduce((items, game, index) => {
+    if (!canEditGamePrediction(game)) return items;
     const homeInput = byId(`${source}Home-${game.id_jogo}`).value;
     const awayInput = byId(`${source}Away-${game.id_jogo}`).value;
     if (homeInput === "" && awayInput === "") return items;
@@ -1543,6 +1579,7 @@ function buildMatchPredictions(participant, source) {
 
 function validateMatchPredictionInputs(source, feedbackId) {
   const missingGame = currentPageGames().find((game) => {
+    if (!canEditGamePrediction(game)) return false;
     const home = byId(`${source}Home-${game.id_jogo}`).value;
     const away = byId(`${source}Away-${game.id_jogo}`).value;
     return (home === "" && away !== "") || (home !== "" && away === "");
@@ -1578,15 +1615,16 @@ function hasRepeatedFinalTeams(finalPrediction) {
     finalPrediction.palpite_3_lugar,
     finalPrediction.palpite_4_lugar,
   ].map(teamKey);
-  return new Set(teams).size !== teams.length;
+  const selectedTeams = teams.filter(Boolean);
+  return new Set(selectedTeams).size !== selectedTeams.length;
 }
 
 async function savePredictionSet(participant, matchPredictions, finalPrediction) {
+  await persistPredictions(matchPredictions, finalPrediction);
   palpites = palpites.filter((prediction) => !matchPredictions.some((item) =>
     item.id_participante === prediction.id_participante && item.id_jogo === prediction.id_jogo
   ));
   faseFinal = faseFinal.filter((prediction) => prediction.id_participante !== finalPrediction.id_participante);
-  await persistPredictions(matchPredictions, finalPrediction);
   palpites.push(...matchPredictions);
   faseFinal.push(finalPrediction);
   renderPredictionFilters();
@@ -1621,9 +1659,12 @@ async function addLinePredictions() {
   if (!validateMatchPredictionInputs("linePred", "linePredictionsFeedback")) return;
   const matchPredictions = buildMatchPredictions(participant, "linePred");
   if (!matchPredictions.length) {
+    const pageHasOpenGames = currentPageGames().some(canEditGamePrediction);
     setFeedback(
       ["linePredictionsFeedback", "linePredictionsFeedbackTop"],
-      "Altere ou preencha pelo menos um jogo antes de salvar."
+      pageHasOpenGames
+        ? "Altere ou preencha pelo menos um jogo antes de salvar."
+        : "Todos os jogos desta pagina ja passaram do horario oficial e estao bloqueados para novos palpites."
     );
     return;
   }
@@ -1776,11 +1817,10 @@ function renderParticipantsSheet() {
       </td>
       <td>${participant.login || "-"}</td>
       <td>${participant.data_cadastro || "-"}</td>
+      <td><span class="access-status ${participantAccessBlocked(participant) ? "blocked" : "active"}">${participantAccessBlocked(participant) ? "Bloqueado" : "Ativo"}</span></td>
       <td>
         <button class="small-table-button" type="button" data-save-email="${participant.id_participante}">Salvar e-mail</button>
-        ${participant.login
-          ? `<button class="small-table-button" type="button" data-reset-password="${participant.id_participante}">Resetar senha</button>`
-          : "-"}
+        <button class="small-table-button" type="button" data-toggle-access="${participant.id_participante}">${participantAccessBlocked(participant) ? "Liberar acesso" : "Bloquear acesso"}</button>
       </td>
     </tr>`)
     .join("");
@@ -1897,24 +1937,31 @@ function setupParticipantPasswordReset() {
       return;
     }
 
-    const button = event.target.closest("[data-reset-password]");
+    const button = event.target.closest("[data-toggle-access]");
     if (!button) return;
 
-    const participantId = button.dataset.resetPassword;
+    const participantId = button.dataset.toggleAccess;
     const participant = participantes.find((item) => item.id_participante === participantId);
     if (!participant) return;
 
-    const tempPassword = temporaryPassword();
+    const accessBlocked = !participantAccessBlocked(participant);
     try {
-      await updateParticipant(participantId, {
-        password_token: passwordToken(tempPassword),
-        must_change_password: true,
+      byId("participantsSheetFeedback").textContent = accessBlocked
+        ? "Bloqueando acesso do participante..."
+        : "Liberando acesso do participante...";
+      const data = await setParticipantAccessBlocked({
+        companyId: participant.company_id || activeCompanyId(),
+        participantId,
+        accessBlocked,
       });
+      Object.assign(participant, data.participant || { access_blocked: accessBlocked });
+      renderParticipantsSheet();
+      byId("participantsSheetFeedback").textContent = accessBlocked
+        ? "Acesso bloqueado. O participante nao conseguira entrar ou continuar apos recarregar."
+        : "Acesso liberado para o participante.";
     } catch (error) {
       byId("participantsSheetFeedback").textContent = error.message;
-      return;
     }
-    button.closest("td").innerHTML = `<strong>Senha temporária:</strong> ${tempPassword}`;
   });
   byId("exportParticipantsButton").addEventListener("click", exportParticipantsToGoogleSheets);
 }
@@ -1923,7 +1970,7 @@ function setupRankingFilters() {
   byId("rankingRoundFilter").innerHTML = ["Todas", "1", "2", "3"]
     .map((round) => `<option value="${round}">${round === "Todas" ? "Todas as rodadas" : `Rodada ${round}`}</option>`)
     .join("");
-  byId("rankingGroupFilter").innerHTML = ["Todos", ...new Set(jogos.map((game) => game.grupo))].sort()
+  byId("rankingGroupFilter").innerHTML = ["Todos", ...[...new Set(jogos.map((game) => game.grupo))].sort()]
     .map((group) => `<option value="${group}">${group === "Todos" ? "Todos os grupos" : `Grupo ${group}`}</option>`)
     .join("");
   byId("rankingRoundFilter").addEventListener("change", renderRankingPanel);

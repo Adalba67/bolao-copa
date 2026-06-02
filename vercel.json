@@ -56,6 +56,14 @@
       "dest": "/api/sync-participant-auth-user.js"
     },
     {
+      "src": "/api/save-predictions",
+      "dest": "/api/save-predictions.js"
+    },
+    {
+      "src": "/api/set-participant-access",
+      "dest": "/api/set-participant-access.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/$1"
     }

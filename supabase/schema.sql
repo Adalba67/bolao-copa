@@ -91,6 +91,7 @@ create table if not exists public.participantes (
   apelido text,
   data_cadastro date not null default current_date,
   ativo boolean not null default true,
+  access_blocked boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (company_id, id_participante),
@@ -99,6 +100,7 @@ create table if not exists public.participantes (
 
 alter table public.participantes add column if not exists email text;
 alter table public.participantes add column if not exists auth_user_id uuid references auth.users(id) on delete set null;
+alter table public.participantes add column if not exists access_blocked boolean not null default false;
 alter table public.participantes drop constraint if exists participantes_email_format_check;
 alter table public.participantes
   add constraint participantes_email_format_check check (
@@ -240,6 +242,7 @@ create unique index if not exists idx_admins_login on public.admins(login);
 create unique index if not exists idx_admins_email on public.admins(lower(email)) where email is not null;
 create index if not exists idx_participantes_company on public.participantes(company_id);
 create index if not exists idx_participantes_login on public.participantes(company_id, login);
+create index if not exists idx_participantes_access_blocked on public.participantes(company_id, access_blocked);
 create unique index if not exists idx_participantes_company_email on public.participantes(company_id, lower(email)) where email is not null;
 create unique index if not exists idx_participantes_auth_user_id on public.participantes(auth_user_id) where auth_user_id is not null;
 create index if not exists idx_password_reset_tokens_token on public.password_reset_tokens(token) where used_at is null;
@@ -772,14 +775,59 @@ create policy "public_insert_palpites_before_deadline"
 on public.palpites
 for insert
 to anon, authenticated
-with check (current_date < date '2026-06-11');
+with check (
+  exists (
+    select 1
+    from public.jogos j
+    where j.id_jogo = palpites.id_jogo
+      and (now() at time zone 'America/Sao_Paulo') < j.data_hora
+  )
+  and exists (
+    select 1
+    from public.participantes p
+    where p.company_id = palpites.company_id
+      and p.id_participante = palpites.id_participante
+      and p.ativo = true
+      and p.access_blocked = false
+  )
+);
 
 create policy "public_update_palpites_before_deadline"
 on public.palpites
 for update
 to anon, authenticated
-using (current_date < date '2026-06-11')
-with check (current_date < date '2026-06-11');
+using (
+  exists (
+    select 1
+    from public.jogos j
+    where j.id_jogo = palpites.id_jogo
+      and (now() at time zone 'America/Sao_Paulo') < j.data_hora
+  )
+  and exists (
+    select 1
+    from public.participantes p
+    where p.company_id = palpites.company_id
+      and p.id_participante = palpites.id_participante
+      and p.ativo = true
+      and p.access_blocked = false
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.jogos j
+    where j.id_jogo = palpites.id_jogo
+      and (now() at time zone 'America/Sao_Paulo') < j.data_hora
+  )
+  and exists (
+    select 1
+    from public.participantes p
+    where p.company_id = palpites.company_id
+      and p.id_participante = palpites.id_participante
+      and p.ativo = true
+      and p.access_blocked = false
+  )
+);
 
 drop policy if exists "public_select_fase_final" on public.fase_final;
 drop policy if exists "public_insert_fase_final_before_deadline" on public.fase_final;
@@ -852,6 +900,7 @@ grant select on public.selecoes to anon, authenticated;
 grant select on public.resultado_final to anon, authenticated;
 grant select, insert, update on public.participantes to anon, authenticated;
 grant select, insert, update on public.palpites to anon, authenticated;
+revoke delete on public.palpites from anon, authenticated;
 grant select, insert, update on public.fase_final to anon, authenticated;
 grant select on public.ranking to anon, authenticated;
 revoke select on public.admins from anon;
