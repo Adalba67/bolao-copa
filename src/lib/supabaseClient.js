@@ -29,9 +29,9 @@ export async function getSupabaseClient() {
 
   supabase = createClient(config.url, config.anonKey, {
     auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
     },
   });
   return supabase;

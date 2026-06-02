@@ -7,8 +7,14 @@
   saveParticipant,
   savePredictionSetToSupabase,
   saveRanking,
+  prepareSupabasePasswordRecovery,
+  requestSupabasePasswordReset,
   signInAdmin,
+  signInWithAuth,
   signOutAdmin,
+  signOutSupabaseAuth,
+  syncParticipantAuthUser,
+  updateSupabasePassword,
 } from "./src/lib/bolaoRepository.js";
 
 let jogos = [];
@@ -244,17 +250,6 @@ function isValidEmail(value) {
   return EMAIL_PATTERN.test(normalizeEmail(value));
 }
 
-async function postJson(path, payload) {
-  const response = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "Falha na operação.");
-  return data;
-}
-
 function loginForParticipant(firstName, phone) {
   const first = String(firstName || "")
     .trim()
@@ -417,6 +412,74 @@ function activeParticipantId() {
   return currentUser && currentUser.role === "participant" ? currentUser.participantId : null;
 }
 
+function companyProfileFromAuthAdmin(record) {
+  return {
+    id: record.company_id || companyProfile?.id || activeCompanyId(),
+    name_type: record.name_type || companyProfile?.name_type || "",
+    name: record.name || record.company_name || companyProfile?.name || companyDisplayName(),
+    sheet_name: record.sheet_name || companyProfile?.sheet_name || "",
+    spreadsheet_id: record.spreadsheet_id || companyProfile?.spreadsheet_id || "",
+    googleSheetId: record.google_sheet_id || record.googleSheetId || companyProfile?.googleSheetId || "",
+    webhook_url: record.webhook_url || companyProfile?.webhook_url || "",
+    logo_data_url: record.logo_data_url || companyProfile?.logo_data_url || "",
+    email: record.email || companyProfile?.email || "",
+    updated_at: record.updated_at || companyProfile?.updated_at || "",
+  };
+}
+
+function authRole(record) {
+  return String(record?.role || record?.user_type || record?.profile_type || record?.type || "").toLowerCase();
+}
+
+function participantFromAuth(record, email) {
+  const participantId = record?.id_participante || record?.participant_id;
+  return participantes.find((item) =>
+    item.ativo === "True" &&
+    ((participantId && String(item.id_participante) === String(participantId)) ||
+      (email && item.email && normalizeEmail(item.email) === email))
+  );
+}
+
+function isAuthAdmin(record, email) {
+  const role = authRole(record);
+  return role === "admin" || role === "adm" || Boolean(record?.admin_id) ||
+    Boolean(email && companyProfile?.email && normalizeEmail(companyProfile.email) === email);
+}
+
+function setAdminSession(admin, authUser = null) {
+  companyProfile = companyProfileFromAuthAdmin(admin || {});
+  updateCompanyLabels();
+  sessionStorage.setItem("bolao-user", JSON.stringify({
+    role: "admin",
+    name: companyProfile.name || "ADM",
+    email: companyProfile.email || authUser?.email || "",
+    authUserId: authUser?.id || "",
+    auth: Boolean(authUser),
+  }));
+  byId("loginError").textContent = "";
+  checkSession();
+}
+
+function setParticipantSession(participant, authUser = null) {
+  companyProfile = {
+    id: participant.company_id || activeCompanyId(),
+    name: participant.company_name || companyDisplayName(),
+    name_type: companyProfile?.name_type || "",
+    logo_data_url: companyProfile?.logo_data_url || "",
+  };
+  updateCompanyLabels();
+  sessionStorage.setItem("bolao-user", JSON.stringify({
+    role: "participant",
+    name: participantDisplayName(participant),
+    email: participant.email || authUser?.email || "",
+    participantId: participant.id_participante,
+    authUserId: authUser?.id || "",
+    auth: Boolean(authUser),
+  }));
+  byId("loginError").textContent = "";
+  checkSession();
+}
+
 function checkSession() {
   currentUser = JSON.parse(sessionStorage.getItem("bolao-user") || "null");
   const logged = Boolean(currentUser);
@@ -424,7 +487,7 @@ function checkSession() {
   byId("appView").classList.toggle("hidden", !logged);
   if (!logged) return;
   const chipName = currentUser.role === "admin" ? "ADM" : currentUser.name;
-  byId("userChip").textContent = currentUser.email ? `${chipName} | ${currentUser.email}` : chipName;
+  byId("userChip").textContent = chipName;
   document.body.classList.toggle("participant-session", currentUser.role === "participant");
   document.querySelectorAll(".admin-only").forEach((item) => {
     item.classList.toggle("hidden", currentUser.role !== "admin");
@@ -445,12 +508,23 @@ function checkSession() {
   renderMyScore();
 }
 
-function setupAuth() {
-  const resetToken = new URLSearchParams(window.location.search).get("reset_token");
-  if (resetToken) {
-    byId("loginForm").classList.add("hidden");
-    byId("resetPasswordForm").classList.remove("hidden");
-    byId("resetToken").value = resetToken;
+async function setupAuth() {
+  const resetParams = new URLSearchParams(window.location.search);
+  if (resetParams.get("reset_password") === "1" || window.location.hash.includes("type=recovery") || resetParams.has("code")) {
+    try {
+      const recoveryReady = await prepareSupabasePasswordRecovery();
+      if (recoveryReady) {
+        byId("loginForm").classList.add("hidden");
+        byId("resetPasswordForm").classList.remove("hidden");
+        byId("resetToken").value = "supabase-auth";
+        byId("resetPasswordFeedback").textContent = "Informe a nova senha para concluir a recuperacao.";
+      } else {
+        byId("loginError").textContent = "Link de recuperacao expirado ou incompleto. Solicite um novo link.";
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    } catch (error) {
+      byId("loginError").textContent = error.message;
+    }
   }
 
   byId("showRegisterButton").addEventListener("click", () => {
@@ -474,25 +548,40 @@ function setupAuth() {
     const user = byId("username").value.trim();
     const password = byId("password").value;
 
+    const normalizedUserEmail = normalizeEmail(user);
+    if (isValidEmail(user)) {
+      try {
+        const { user: authUser, linkedUser } = await signInWithAuth(normalizedUserEmail, password);
+        const authParticipant = participantFromAuth(linkedUser, normalizedUserEmail);
+        if (authParticipant && !isAuthAdmin(linkedUser, normalizedUserEmail)) {
+          if (authParticipant.must_change_password) {
+            pendingPasswordParticipantId = authParticipant.id_participante;
+            byId("loginForm").classList.add("hidden");
+            byId("registerForm").classList.add("hidden");
+            byId("changePasswordForm").classList.remove("hidden");
+            byId("changePasswordFeedback").textContent = "";
+            return;
+          }
+          setParticipantSession(authParticipant, authUser);
+          return;
+        }
+        if (isAuthAdmin(linkedUser, normalizedUserEmail)) {
+          setAdminSession(linkedUser || { email: normalizedUserEmail }, authUser);
+          return;
+        }
+        await signOutSupabaseAuth().catch(() => {});
+      } catch (error) {
+        if (!/Login Supabase Auth invalido/i.test(error.message)) {
+          byId("loginError").textContent = error.message;
+          return;
+        }
+      }
+    }
+
     try {
       const { admin } = await signInAdmin(user, password);
       if (admin) {
-        companyProfile = {
-          id: admin.company_id,
-          name_type: admin.name_type,
-          name: admin.name,
-          sheet_name: admin.sheet_name,
-          spreadsheet_id: admin.spreadsheet_id,
-          googleSheetId: admin.google_sheet_id,
-          webhook_url: admin.webhook_url,
-          logo_data_url: admin.logo_data_url,
-          email: admin.email || "",
-          updated_at: admin.updated_at,
-        };
-        updateCompanyLabels();
-        sessionStorage.setItem("bolao-user", JSON.stringify({ role: "admin", name: admin?.name || "ADM", email: admin?.email || "" }));
-        byId("loginError").textContent = "";
-        checkSession();
+        setAdminSession(admin);
         return;
       }
     } catch (error) {
@@ -500,7 +589,6 @@ function setupAuth() {
       return;
     }
 
-    const normalizedUserEmail = normalizeEmail(user);
     const participant = participantes.find((item) =>
       item.login === user || (item.email && normalizeEmail(item.email) === normalizedUserEmail)
     );
@@ -521,14 +609,7 @@ function setupAuth() {
         return;
       }
 
-      sessionStorage.setItem("bolao-user", JSON.stringify({
-        role: "participant",
-        name: participantDisplayName(participant),
-        email: participant.email || "",
-        participantId: participant.id_participante,
-      }));
-      byId("loginError").textContent = "";
-      checkSession();
+      setParticipantSession(participant);
       return;
     }
 
@@ -559,12 +640,7 @@ function setupAuth() {
       return;
     }
 
-    sessionStorage.setItem("bolao-user", JSON.stringify({
-      role: "participant",
-      name: participantDisplayName(participant),
-      email: participant.email || "",
-      participantId: participant.id_participante,
-    }));
+    setParticipantSession(participant);
     pendingPasswordParticipantId = null;
     byId("newParticipantPassword").value = "";
     byId("newParticipantPasswordConfirm").value = "";
@@ -580,9 +656,27 @@ function setupAuth() {
     const password = byId("registerPassword").value;
     const passwordConfirm = byId("registerPasswordConfirm").value;
     const phoneDigits = digitsOnly(phone);
+    const missingFields = [];
 
-    if (!firstName || !lastName || phoneDigits.length < 3 || !isValidEmail(email)) {
-      byId("registerFeedback").textContent = "Informe nome, sobrenome, telefone e um e-mail valido.";
+    if (!firstName) missingFields.push("nome");
+    if (!lastName) missingFields.push("sobrenome");
+    if (!phone) missingFields.push("telefone");
+    if (!email) missingFields.push("e-mail");
+    if (!password) missingFields.push("senha");
+    if (!passwordConfirm) missingFields.push("confirmacao de senha");
+
+    if (missingFields.length) {
+      byId("registerFeedback").textContent = `Preencha os campos obrigatorios: ${missingFields.join(", ")}.`;
+      return;
+    }
+
+    if (phoneDigits.length < 3) {
+      byId("registerFeedback").textContent = "Informe um telefone valido com DDD.";
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      byId("registerFeedback").textContent = "Informe um e-mail valido.";
       return;
     }
 
@@ -639,6 +733,7 @@ function setupAuth() {
   });
 
   byId("logoutButton").addEventListener("click", async () => {
+    await signOutSupabaseAuth().catch(() => {});
     await signOutAdmin().catch(() => {});
     sessionStorage.removeItem("bolao-user");
     checkSession();
@@ -667,16 +762,15 @@ function setupAuth() {
       return;
     }
     try {
-      await postJson("/api/request-password-reset", { email });
-      byId("resetFeedback").textContent = "Se o e-mail existir, enviaremos as instrucoes de recuperacao.";
+      await requestSupabasePasswordReset(email);
+      byId("resetFeedback").textContent = "Se o e-mail estiver cadastrado, o Supabase enviara um link de recuperacao. Verifique sua caixa de entrada e spam.";
     } catch (error) {
-      byId("resetFeedback").textContent = error.message;
+      byId("resetFeedback").textContent = `${error.message} Confira a configuracao de Auth/SMTP no Supabase.`;
     }
   });
 
   byId("resetPasswordForm").addEventListener("submit", async (event) => {
     event.preventDefault();
-    const token = byId("resetToken").value;
     const password = byId("resetNewPassword").value;
     const confirm = byId("resetNewPasswordConfirm").value;
     if (password.length < 6 || password !== confirm) {
@@ -684,16 +778,17 @@ function setupAuth() {
       return;
     }
     try {
-      await postJson("/api/reset-password", { token, newPassword: password });
+      await updateSupabasePassword(password);
+      await signOutSupabaseAuth().catch(() => {});
       byId("resetPasswordFeedback").textContent = "Senha alterada. Entre novamente.";
       byId("resetNewPassword").value = "";
       byId("resetNewPasswordConfirm").value = "";
       window.history.replaceState({}, "", window.location.pathname);
       byId("resetPasswordForm").classList.add("hidden");
       byId("loginForm").classList.remove("hidden");
-      byId("loginError").textContent = "Senha alterada. Entre novamente.";
+      byId("loginError").textContent = "Senha alterada. Entre com seu e-mail e a nova senha.";
     } catch (error) {
-      byId("resetPasswordFeedback").textContent = error.message;
+      byId("resetPasswordFeedback").textContent = `${error.message} Solicite um novo link se este estiver expirado.`;
     }
   });
 }
@@ -1774,9 +1869,29 @@ function setupParticipantPasswordReset() {
         return;
       }
       try {
-        await updateParticipant(participantId, { email });
-        byId("participantsSheetFeedback").textContent = "E-mail do participante salvo.";
+        byId("participantsSheetFeedback").textContent = "Salvando e vinculando usuario no Supabase Auth...";
+        console.info("[participants] salvar email", {
+          participantId,
+          companyId: participant.company_id || activeCompanyId(),
+          email,
+        });
+        const data = await syncParticipantAuthUser({
+          companyId: participant.company_id || activeCompanyId(),
+          participantId,
+          email,
+        });
+        Object.assign(participant, data.participant || { email, auth_user_id: data.auth_user_id });
+        console.info("[participants] email salvo e auth vinculado", {
+          participantId,
+          email,
+          created: data.created,
+          authUserId: data.auth_user_id,
+        });
+        byId("participantsSheetFeedback").textContent = data.created
+          ? "E-mail salvo e usuario criado no Supabase Auth. O participante ja pode usar Esqueci minha senha para definir a senha."
+          : "E-mail salvo e usuario vinculado no Supabase Auth.";
       } catch (error) {
+        console.error("[participants] falha ao salvar/vincular email", error);
         byId("participantsSheetFeedback").textContent = error.message;
       }
       return;
@@ -1893,7 +2008,7 @@ async function boot() {
   loadCompanyProfile();
   await syncCurrentCompany();
   mergeStoredData();
-  setupAuth();
+  await setupAuth();
   setupNavigation();
   setupCompanyAdmin();
   checkSession();
@@ -1921,6 +2036,7 @@ async function boot() {
   byId("manualCalculateButton").addEventListener("click", applyManualResults);
   byId("fetchBallResultsButton").addEventListener("click", fetchBallDontLieResults);
   byId("linePredictionsButton").addEventListener("click", addLinePredictions);
+  byId("linePredictionsButtonBottom").addEventListener("click", addLinePredictions);
   fetchBallResultsWhenCupStarts();
 }
 

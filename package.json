@@ -8,5 +8,8 @@
     "test": "python -m pytest",
     "check": "node --check app.js",
     "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2"
   }
 }

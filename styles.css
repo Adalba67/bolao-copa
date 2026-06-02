@@ -259,6 +259,10 @@ nav {
   justify-items: end;
 }
 
+.bottom-line-actions {
+  justify-items: start;
+}
+
 .save-actions {
   align-items: flex-end;
   display: grid;

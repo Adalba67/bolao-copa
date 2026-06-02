@@ -1,3 +1,5 @@
+require("dotenv").config({ path: ".env.local" });
+
 module.exports = function handler(request, response) {
   if (request.method !== "GET") {
     response.setHeader("Allow", "GET");

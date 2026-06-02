@@ -52,6 +52,10 @@
       "dest": "/api/reset-password.js"
     },
     {
+      "src": "/api/sync-participant-auth-user",
+      "dest": "/api/sync-participant-auth-user.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/$1"
     }

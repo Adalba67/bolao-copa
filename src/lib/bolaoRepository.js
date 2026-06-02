@@ -99,6 +99,10 @@ function normalizeCompany(admin) {
   };
 }
 
+function firstRecord(data) {
+  return Array.isArray(data) ? data[0] : data;
+}
+
 export async function getCurrentCompany() {
   const client = await getSupabaseClient();
   const { data, error } = await client.rpc("get_current_company");
@@ -151,8 +155,106 @@ export async function signInAdmin(login, password) {
   };
 }
 
+export async function signInWithAuth(login, password) {
+  const client = await getSupabaseClient();
+  const { data: authData, error: authError } = await client.auth.signInWithPassword({
+    email: login,
+    password,
+  });
+  if (authError) throw new Error(formatSupabaseError(authError, "Login Supabase Auth invalido."));
+
+  const { data: linkData, error: linkError } = await client.rpc("link_auth_user_by_email");
+  if (linkError) throw new Error(formatSupabaseError(linkError, "Falha ao vincular usuario Auth."));
+
+  return {
+    session: authData?.session || null,
+    user: authData?.user || null,
+    linkedUser: firstRecord(linkData) || null,
+  };
+}
+
+export async function signOutSupabaseAuth() {
+  const client = await getSupabaseClient();
+  const { error } = await client.auth.signOut();
+  if (error) throw new Error(formatSupabaseError(error, "Falha ao sair do Supabase Auth."));
+}
+
 export async function signOutAdmin() {
   return Promise.resolve();
+}
+
+function passwordResetRedirectUrl() {
+  return `${window.location.origin}${window.location.pathname}?reset_password=1`;
+}
+
+export async function requestSupabasePasswordReset(email) {
+  const client = await getSupabaseClient();
+  const { error } = await client.auth.resetPasswordForEmail(email, {
+    redirectTo: passwordResetRedirectUrl(),
+  });
+  if (error) throw new Error(formatSupabaseError(error, "Falha ao enviar recuperacao de senha."));
+}
+
+export async function prepareSupabasePasswordRecovery() {
+  const client = await getSupabaseClient();
+  const searchParams = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const accessToken = hashParams.get("access_token");
+  const refreshToken = hashParams.get("refresh_token");
+  const code = searchParams.get("code");
+
+  if (accessToken && refreshToken) {
+    const { error } = await client.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    if (error) throw new Error(formatSupabaseError(error, "Link de recuperacao invalido ou expirado."));
+    window.history.replaceState({}, "", `${window.location.pathname}?reset_password=1`);
+    return true;
+  }
+
+  if (code) {
+    const { error } = await client.auth.exchangeCodeForSession(code);
+    if (error) throw new Error(formatSupabaseError(error, "Link de recuperacao invalido ou expirado."));
+    window.history.replaceState({}, "", `${window.location.pathname}?reset_password=1`);
+    return true;
+  }
+
+  if (searchParams.get("reset_password") === "1") {
+    const { data, error } = await client.auth.getSession();
+    if (error) throw new Error(formatSupabaseError(error, "Falha ao validar sessao de recuperacao."));
+    return Boolean(data?.session);
+  }
+
+  return false;
+}
+
+export async function updateSupabasePassword(password) {
+  const client = await getSupabaseClient();
+  const { error } = await client.auth.updateUser({ password });
+  if (error) throw new Error(formatSupabaseError(error, "Falha ao alterar senha."));
+}
+
+export async function syncParticipantAuthUser({ companyId, participantId, email }) {
+  console.info("[syncParticipantAuthUser] chamando endpoint", { companyId, participantId, email });
+  const response = await fetch("/api/sync-participant-auth-user", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ companyId, participantId, email }),
+  });
+  const data = await response.json().catch(() => ({}));
+  console.info("[syncParticipantAuthUser] resposta do endpoint", {
+    status: response.status,
+    ok: response.ok,
+    created: data.created,
+    authUserId: data.auth_user_id,
+    requestId: data.requestId,
+  });
+  if (!response.ok) {
+    throw new Error(data.details ? `${data.error} ${data.details}` : data.error || "Falha ao sincronizar usuario Auth.");
+  }
+  if (data.participant) data.participant = normalizeParticipant(data.participant);
+  return data;
 }
 
 export async function changeAdminPassword(currentPassword, newPassword) {

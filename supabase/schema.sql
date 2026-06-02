@@ -84,6 +84,7 @@ create table if not exists public.participantes (
   sobrenome text,
   telefone text,
   email text,
+  auth_user_id uuid references auth.users(id) on delete set null,
   login text not null,
   password_token text,
   must_change_password boolean not null default false,
@@ -97,6 +98,7 @@ create table if not exists public.participantes (
 );
 
 alter table public.participantes add column if not exists email text;
+alter table public.participantes add column if not exists auth_user_id uuid references auth.users(id) on delete set null;
 alter table public.participantes drop constraint if exists participantes_email_format_check;
 alter table public.participantes
   add constraint participantes_email_format_check check (
@@ -239,6 +241,7 @@ create unique index if not exists idx_admins_email on public.admins(lower(email)
 create index if not exists idx_participantes_company on public.participantes(company_id);
 create index if not exists idx_participantes_login on public.participantes(company_id, login);
 create unique index if not exists idx_participantes_company_email on public.participantes(company_id, lower(email)) where email is not null;
+create unique index if not exists idx_participantes_auth_user_id on public.participantes(auth_user_id) where auth_user_id is not null;
 create index if not exists idx_password_reset_tokens_token on public.password_reset_tokens(token) where used_at is null;
 create index if not exists idx_password_reset_tokens_email on public.password_reset_tokens(lower(email), expires_at desc);
 create index if not exists idx_jogos_grupo on public.jogos(grupo);
