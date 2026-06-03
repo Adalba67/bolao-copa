@@ -56,6 +56,7 @@ function participantPayload(participant) {
     sobrenome: participant.sobrenome,
     telefone: participant.telefone,
     email: participant.email,
+    auth_user_id: participant.auth_user_id || null,
     login: participant.login,
     password_token: participant.password_token,
     must_change_password: Boolean(participant.must_change_password),
@@ -267,6 +268,23 @@ export async function syncParticipantAuthUser({ companyId, participantId, email 
     throw new Error(data.details ? `${data.error} ${data.details}` : data.error || "Falha ao sincronizar usuario Auth.");
   }
   if (data.participant) data.participant = normalizeParticipant(data.participant);
+  return data;
+}
+
+export async function registerParticipantAccount({ companyId, firstName, lastName, phone, email, password, login }) {
+  const response = await fetch("/api/register-participant", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ companyId, firstName, lastName, phone, email, password, login }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.details ? `${data.error} ${data.details}` : data.error || "Falha ao criar conta.");
+  }
+  if (!data.participant?.auth_user_id) {
+    throw new Error("Cadastro criado sem usuario Supabase Auth vinculado.");
+  }
+  data.participant = normalizeParticipant(data.participant);
   return data;
 }
 

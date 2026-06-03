@@ -8,6 +8,7 @@
   savePredictionSetToSupabase,
   saveRanking,
   prepareSupabasePasswordRecovery,
+  registerParticipantAccount,
   requestSupabasePasswordReset,
   setParticipantAccessBlocked,
   signInAdmin,
@@ -600,7 +601,7 @@ async function setupAuth() {
     }
 
     const participant = participantes.find((item) =>
-      item.login === user || (item.email && normalizeEmail(item.email) === normalizedUserEmail)
+      item.login === user || (!isValidEmail(user) && item.email && normalizeEmail(item.email) === normalizedUserEmail)
     );
     if (participant && participantPasswordMatches(participant, password)) {
       if (participantAccessBlocked(participant)) {
@@ -694,18 +695,14 @@ async function setupAuth() {
       return;
     }
 
-    if (password.length < 4 || password !== passwordConfirm) {
-      byId("registerFeedback").textContent = "Informe senhas iguais com pelo menos 4 caracteres.";
+    if (password.length < 6 || password !== passwordConfirm) {
+      byId("registerFeedback").textContent = "Informe senhas iguais com pelo menos 6 caracteres.";
       return;
     }
 
     const login = loginForParticipant(firstName, phone);
-    if (participantes.some((participant) => participant.login === login)) {
+    if (participantes.some((participant) => participant.login === login && normalizeEmail(participant.email) !== email)) {
       byId("registerFeedback").textContent = `Login ${login} ja cadastrado. Ajuste o telefone ou nome.`;
-      return;
-    }
-    if (participantes.some((participant) => normalizeEmail(participant.email) === email)) {
-      byId("registerFeedback").textContent = "E-mail ja cadastrado para participante.";
       return;
     }
 
@@ -717,25 +714,23 @@ async function setupAuth() {
       return;
     }
 
-    const participant = {
-      id_participante: nextParticipantId(),
-      company_id: currentCompany.id,
-      company_name: currentCompany.name,
-      nome: firstName,
-      sobrenome: lastName,
-      telefone: phone,
-      email,
-      login,
-      password_token: passwordToken(password),
-      must_change_password: false,
-      apelido: `${firstName} ${lastName}`,
-      data_cadastro: new Date().toISOString().slice(0, 10),
-      ativo: "True",
-    };
-
     try {
-      const savedParticipant = await persistParticipant(participant);
-      participantes.push(savedParticipant);
+      byId("registerFeedback").textContent = "Criando usuario no Supabase Auth...";
+      const { participant: savedParticipant } = await registerParticipantAccount({
+        companyId: currentCompany.id,
+        firstName,
+        lastName,
+        phone,
+        email,
+        password,
+        login,
+      });
+      const existingIndex = participantes.findIndex((participant) => participant.id_participante === savedParticipant.id_participante);
+      if (existingIndex >= 0) {
+        participantes[existingIndex] = savedParticipant;
+      } else {
+        participantes.push(savedParticipant);
+      }
     } catch (error) {
       byId("registerFeedback").textContent = error.message;
       return;
@@ -743,7 +738,7 @@ async function setupAuth() {
     renderDashboard();
     renderParticipantsSheet();
     populateParticipantForms();
-    byId("registerFeedback").textContent = `Cadastro criado. Login: ${login}`;
+    byId("registerFeedback").textContent = `Cadastro criado e vinculado ao Supabase Auth. Login: ${email}`;
   });
 
   byId("logoutButton").addEventListener("click", async () => {
