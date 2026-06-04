@@ -866,6 +866,10 @@ th {
     background: #26384a;
   }
 
+  .desktop-only {
+    display: none !important;
+  }
+
   .metrics,
   .groups-grid,
   .manual-grid,

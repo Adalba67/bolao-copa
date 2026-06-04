@@ -25,3 +25,6 @@ temp/
 .vercel
 .vercel/
 .env*.local
+
+supabase/.temp/
+supabase/.branches/

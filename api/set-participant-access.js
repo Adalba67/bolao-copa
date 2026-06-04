@@ -1,44 +1,16 @@
 const crypto = require("crypto");
-require("dotenv").config({ path: ".env.local" });
+const {
+  assertAdminCompanyAccess,
+  auditLog,
+  json,
+  readJson,
+  requireAdmin,
+  statusFromError,
+  supabaseFetch,
+} = require("../server/security");
 
 function log(requestId, step, details = {}) {
   console.log(`[set-participant-access:${requestId}] ${step}`, details);
-}
-
-function json(response, status, body) {
-  response.setHeader("Cache-Control", "no-store");
-  response.status(status).json(body);
-}
-
-async function readJson(request) {
-  return typeof request.body === "string" ? JSON.parse(request.body || "{}") : request.body || {};
-}
-
-async function supabaseFetch(path, options = {}) {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const headers = {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
-  };
-  const response = await fetch(`${supabaseUrl}${path}`, {
-    ...options,
-    headers,
-  });
-  const text = await response.text();
-  let data = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = null;
-  }
-  if (!response.ok) {
-    const message = data?.message || data?.error || text || `HTTP ${response.status}`;
-    throw new Error(message);
-  }
-  return data;
 }
 
 async function setAccessBlocked(companyId, participantId, accessBlocked) {
@@ -78,8 +50,6 @@ module.exports = async function handler(request, response) {
     companyId,
     participantId,
     accessBlocked,
-    hasSupabaseUrl: Boolean(process.env.SUPABASE_URL),
-    hasServiceRole: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
   });
 
   if (!companyId || !participantId) {
@@ -88,13 +58,9 @@ module.exports = async function handler(request, response) {
     return;
   }
 
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    log(requestId, "missing_environment");
-    json(response, 500, { error: "Controle de acesso nao configurado no ambiente." });
-    return;
-  }
-
   try {
+    const { user, admin } = await requireAdmin(request);
+    assertAdminCompanyAccess(admin, companyId);
     const participant = await setAccessBlocked(companyId, participantId, accessBlocked);
     if (!participant) {
       log(requestId, "participant_not_found", { companyId, participantId });
@@ -106,9 +72,17 @@ module.exports = async function handler(request, response) {
       participantId,
       accessBlocked: Boolean(participant.access_blocked),
     });
+    await auditLog({
+      actorUserId: user.id,
+      actorRole: admin.role || "admin",
+      companyId: admin.company_id,
+      participantId,
+      action: accessBlocked ? "participant_blocked" : "participant_unblocked",
+      details: { requestId, targetCompanyId: companyId },
+    });
     json(response, 200, { ok: true, participant });
   } catch (error) {
     log(requestId, "update_failed", { message: error.message, stack: error.stack });
-    json(response, 500, { error: "Falha ao alterar acesso do participante.", details: error.message, requestId });
+    json(response, statusFromError(error), { error: "Falha ao alterar acesso do participante.", details: error.message, requestId });
   }
 };

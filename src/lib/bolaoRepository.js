@@ -43,30 +43,6 @@ function normalizeFinalPrediction(prediction) {
   };
 }
 
-function participantDisplayNameForRepository(participant) {
-  return [participant.nome, participant.sobrenome].filter(Boolean).join(" ") || participant.apelido || participant.nome;
-}
-
-function participantPayload(participant) {
-  return {
-    id_participante: Number(participant.id_participante),
-    company_id: participant.company_id,
-    company_name: participant.company_name,
-    nome: participant.nome,
-    sobrenome: participant.sobrenome,
-    telefone: participant.telefone,
-    email: participant.email,
-    auth_user_id: participant.auth_user_id || null,
-    login: participant.login,
-    password_token: participant.password_token,
-    must_change_password: Boolean(participant.must_change_password),
-    apelido: participant.apelido,
-    data_cadastro: participant.data_cadastro,
-    ativo: participant.ativo === true || participant.ativo === "True",
-    access_blocked: asBoolean(participant.access_blocked),
-  };
-}
-
 function predictionPayload(prediction) {
   return {
     id_palpite: prediction.id_palpite ? Number(prediction.id_palpite) : null,
@@ -110,26 +86,22 @@ function normalizeCompany(admin) {
     webhook_url: admin.webhook_url,
     logo_data_url: admin.logo_data_url,
     updated_at: admin.updated_at,
+    role: admin.role || "admin",
+    user_id: admin.user_id || null,
   };
 }
 
-function firstRecord(data) {
-  return Array.isArray(data) ? data[0] : data;
+export async function getCurrentCompany(companyId = "") {
+  const query = companyId ? `?companyId=${encodeURIComponent(companyId)}` : "";
+  const response = await fetch(`/api/public-company${query}`, { method: "GET" });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || data.details || "Falha ao carregar empresa atual.");
+  return normalizeCompany(data.company);
 }
 
-export async function getCurrentCompany() {
+export async function loadBolaoData(companyId = "") {
   const client = await getSupabaseClient();
-  const { data, error } = await client.rpc("get_current_company");
-  if (error) throw new Error(formatSupabaseError(error, "Falha ao carregar empresa atual."));
-
-  const company = Array.isArray(data) ? data[0] : data;
-  if (!company) throw new Error("Empresa atual nao encontrada no Supabase.");
-  return normalizeCompany(company);
-}
-
-export async function loadBolaoData() {
-  const client = await getSupabaseClient();
-  const company = await getCurrentCompany();
+  const company = await getCurrentCompany(companyId);
   const [games, teams, participants, predictions, finalPredictions, finalResult] = await Promise.all([
     client.from("jogos").select("*").order("id_jogo"),
     client.from("selecoes").select("*").order("grupo").order("posicao"),
@@ -152,23 +124,6 @@ export async function loadBolaoData() {
   };
 }
 
-export async function signInAdmin(login, password) {
-  const client = await getSupabaseClient();
-  const { data, error } = await client.rpc("authenticate_admin", {
-    p_login: login,
-    p_password: password,
-  });
-  if (error) throw new Error(formatSupabaseError(error, "Login de administrador invalido."));
-
-  const admin = Array.isArray(data) ? data[0] : data;
-  if (!admin) return { user: null, admin: null };
-
-  return {
-    user: null,
-    admin,
-  };
-}
-
 export async function signInWithAuth(login, password) {
   const client = await getSupabaseClient();
   const { data: authData, error: authError } = await client.auth.signInWithPassword({
@@ -177,14 +132,24 @@ export async function signInWithAuth(login, password) {
   });
   if (authError) throw new Error(formatSupabaseError(authError, "Login Supabase Auth invalido."));
 
-  const { data: linkData, error: linkError } = await client.rpc("link_auth_user_by_email");
-  if (linkError) throw new Error(formatSupabaseError(linkError, "Falha ao vincular usuario Auth."));
+  const profile = await loadAuthProfile();
 
   return {
     session: authData?.session || null,
     user: authData?.user || null,
-    linkedUser: firstRecord(linkData) || null,
+    linkedUser: profile.profile || null,
+    profileType: profile.type || "",
   };
+}
+
+export async function loadAuthProfile() {
+  const response = await fetch("/api/auth-profile", {
+    method: "GET",
+    headers: await authHeaders(),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || data.details || "Falha ao carregar perfil Auth.");
+  return data;
 }
 
 export async function signOutSupabaseAuth() {
@@ -249,11 +214,23 @@ export async function updateSupabasePassword(password) {
   if (error) throw new Error(formatSupabaseError(error, "Falha ao alterar senha."));
 }
 
+async function authHeaders() {
+  const client = await getSupabaseClient();
+  const { data, error } = await client.auth.getSession();
+  if (error) throw new Error(formatSupabaseError(error, "Falha ao validar sessao Supabase Auth."));
+  const token = data?.session?.access_token;
+  if (!token) throw new Error("Sessao Supabase Auth obrigatoria para esta operacao.");
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+}
+
 export async function syncParticipantAuthUser({ companyId, participantId, email }) {
   console.info("[syncParticipantAuthUser] chamando endpoint", { companyId, participantId, email });
   const response = await fetch("/api/sync-participant-auth-user", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify({ companyId, participantId, email }),
   });
   const data = await response.json().catch(() => ({}));
@@ -291,7 +268,7 @@ export async function registerParticipantAccount({ companyId, firstName, lastNam
 export async function setParticipantAccessBlocked({ companyId, participantId, accessBlocked }) {
   const response = await fetch("/api/set-participant-access", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify({ companyId, participantId, accessBlocked }),
   });
   const data = await response.json().catch(() => ({}));
@@ -302,70 +279,44 @@ export async function setParticipantAccessBlocked({ companyId, participantId, ac
   return data;
 }
 
-export async function changeAdminPassword(currentPassword, newPassword) {
-  const client = await getSupabaseClient();
-  const { error } = await client.rpc("change_admin_password", {
-    p_login: "adm",
-    p_current_password: currentPassword,
-    p_new_password: newPassword,
+export async function completeParticipantPasswordChange({ companyId, participantId }) {
+  const response = await fetch("/api/complete-participant-password-change", {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({ companyId, participantId }),
   });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.details ? `${data.error} ${data.details}` : data.error || "Falha ao concluir troca de senha.");
+  }
+  if (data.participant) data.participant = normalizeParticipant(data.participant);
+  return data;
+}
 
-  if (error) throw new Error(formatSupabaseError(error, "Falha ao alterar senha ADM."));
+export async function changeAdminPassword(currentPassword, newPassword) {
+  const response = await fetch("/api/change-admin-password", {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.details ? `${data.error} ${data.details}` : data.error || "Falha ao alterar senha ADM.");
+  }
+  return data;
 }
 
 export async function saveAdminProfile(profile) {
-  const client = await getSupabaseClient();
-  const { error } = await client.rpc("save_admin_profile", {
-    p_company_id: profile.id,
-    p_name_type: profile.name_type,
-    p_name: profile.name,
-    p_email: profile.email,
-    p_sheet_name: profile.sheet_name,
-    p_spreadsheet_id: profile.spreadsheet_id,
-    p_google_sheet_id: profile.googleSheetId,
-    p_webhook_url: profile.webhook_url,
-    p_logo_data_url: profile.logo_data_url,
+  const response = await fetch("/api/save-admin-profile", {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({ profile }),
   });
-
-  if (error) throw new Error(formatSupabaseError(error, "Falha ao salvar ADM."));
-  return profile;
-}
-
-export async function saveParticipant(participant) {
-  const client = await getSupabaseClient();
-  const company = await getCurrentCompany();
-  const participantWithCompany = {
-    ...participant,
-    company_id: company.id,
-    company_name: company.name,
-  };
-  const { data, error } = await client
-    .from("participantes")
-    .upsert(participantPayload(participantWithCompany), { onConflict: "company_id,id_participante" })
-    .select()
-    .single();
-  if (error) throw new Error(formatSupabaseError(error, "Falha ao salvar participante."));
-  return normalizeParticipant(data);
-}
-
-async function getParticipantInCurrentCompany(participantId) {
-  const client = await getSupabaseClient();
-  const company = await getCurrentCompany();
-  const { data, error } = await client
-    .from("participantes")
-    .select("*")
-    .eq("company_id", company.id)
-    .eq("id_participante", Number(participantId))
-    .eq("ativo", true)
-    .maybeSingle();
-
-  if (error) throw new Error(formatSupabaseError(error, "Falha ao validar participante."));
-  if (!data) throw new Error("Participante invalido para a empresa atual.");
-
-  return {
-    company,
-    participant: normalizeParticipant(data),
-  };
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.details ? `${data.error} ${data.details}` : data.error || "Falha ao salvar ADM.");
+  }
+  return normalizeCompany(data.admin);
 }
 
 export async function savePredictionSetToSupabase(matchPredictions, finalPrediction) {
@@ -377,7 +328,7 @@ export async function savePredictionSetToSupabase(matchPredictions, finalPredict
 
   const response = await fetch("/api/save-predictions", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify({ matchPredictions, finalPrediction }),
   });
   const data = await response.json().catch(() => ({}));
@@ -401,47 +352,40 @@ export async function savePredictionSetToSupabase(matchPredictions, finalPredict
 }
 
 export async function saveMatchResults(results, finalResult) {
-  const client = await getSupabaseClient();
-  const updates = results.map((result) =>
-    client
-      .from("jogos")
-      .update({
-        placar_real_casa: Number(result.placar_real_casa),
-        placar_real_fora: Number(result.placar_real_fora),
-        status_jogo: result.status_jogo || "finalizado",
-      })
-      .eq("id_jogo", Number(result.id_jogo))
-  );
-
-  const updateResults = await Promise.all(updates);
-  const failed = updateResults.find((result) => result.error);
-  if (failed) throw new Error(formatSupabaseError(failed.error, "Falha ao salvar resultados."));
-
-  if (finalResult) {
-    const { error } = await client
-      .from("resultado_final")
-      .upsert({ id: 1, ...finalResult }, { onConflict: "id" });
-    if (error) throw new Error(formatSupabaseError(error, "Falha ao salvar resultado final."));
+  const response = await fetch("/api/save-results", {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({ results, finalResult }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.details ? `${data.error} ${data.details}` : data.error || "Falha ao salvar resultados.");
   }
+  return data;
 }
 
 export async function saveRanking(ranking, companyId) {
-  const client = await getSupabaseClient();
-  const company = await getCurrentCompany();
-  const payload = ranking.map((item, index) => ({
-    company_id: company.id || companyId,
-    id_participante: Number(item.id),
-    apelido: item.name,
-    pontos_jogos: Number(item.pointsGames || 0),
-    pontos_fase_final: Number(item.pointsFinal || 0),
-    pontos_total: Number(item.pointsTotal || 0),
-    posicao: index + 1,
-  }));
+  if (!ranking.length) return { ok: true, ranking: [] };
+  const response = await fetch("/api/save-ranking", {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({ ranking, companyId }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.details ? `${data.error} ${data.details}` : data.error || "Falha ao salvar ranking.");
+  }
+  return data;
+}
 
-  if (!payload.length) return;
-
-  const { error } = await client
-    .from("ranking")
-    .upsert(payload, { onConflict: "company_id,id_participante" });
-  if (error) throw new Error(formatSupabaseError(error, "Falha ao salvar ranking."));
+export async function loadSemifinalistsConference() {
+  const response = await fetch("/api/semifinalists-conference", {
+    method: "GET",
+    headers: await authHeaders(),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.details ? `${data.error} ${data.details}` : data.error || "Falha ao carregar conferencia.");
+  }
+  return data;
 }

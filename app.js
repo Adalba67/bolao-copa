@@ -1,23 +1,24 @@
 ﻿import {
   changeAdminPassword,
+  completeParticipantPasswordChange,
   getCurrentCompany,
+  loadSemifinalistsConference,
   loadBolaoData,
   saveAdminProfile,
   saveMatchResults,
-  saveParticipant,
   savePredictionSetToSupabase,
   saveRanking,
   prepareSupabasePasswordRecovery,
   registerParticipantAccount,
   requestSupabasePasswordReset,
   setParticipantAccessBlocked,
-  signInAdmin,
   signInWithAuth,
   signOutAdmin,
   signOutSupabaseAuth,
   syncParticipantAuthUser,
   updateSupabasePassword,
 } from "./src/lib/bolaoRepository.js";
+import { calculateFinalStagePoints, teamKey } from "./src/lib/finalStageRules.mjs";
 
 let jogos = [];
 let selecoes = [];
@@ -166,14 +167,6 @@ function countryCodeFor(team) {
 
 function teamName(team) {
   return countryNamesPtBR[team] || team;
-}
-
-function teamKey(team) {
-  return String(team || "")
-    .trim()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
 }
 
 function teamLabel(team) {
@@ -336,6 +329,28 @@ async function syncCurrentCompany() {
   return companyProfile;
 }
 
+async function reloadBolaoData(companyId = "") {
+  const data = await loadBolaoData(companyId);
+  jogos = data.jogos;
+  selecoes = data.selecoes;
+  participantes = data.participantes;
+  palpites = data.palpites;
+  faseFinal = data.faseFinal;
+  resultadoFinal = data.resultadoFinal;
+  hydrateOfficialResults();
+  populateParticipantForms();
+  renderDashboard();
+  renderGames();
+  renderPredictionFilters();
+  renderPredictions();
+  renderManualGames();
+  renderFinalPredictionOptions();
+  renderLinePredictionGames();
+  renderParticipantsSheet();
+  renderRanking();
+  renderMyScore();
+}
+
 function companyDisplayName() {
   return companyProfile?.name || "Empresa não configurada";
 }
@@ -367,18 +382,6 @@ function mergeStoredData() {
   return;
 }
 
-async function persistParticipant(participant) {
-  return saveParticipant(participant);
-}
-
-async function updateParticipant(participantId, changes) {
-  const participant = participantes.find((item) => item.id_participante === participantId);
-  if (!participant) return null;
-  Object.assign(participant, changes);
-  await persistParticipant(participant);
-  return participant;
-}
-
 async function persistPredictions(matchPredictions, finalPrediction) {
   return savePredictionSetToSupabase(matchPredictions, finalPrediction);
 }
@@ -402,6 +405,7 @@ function companyProfileFromAuthAdmin(record) {
     webhook_url: record.webhook_url || companyProfile?.webhook_url || "",
     logo_data_url: record.logo_data_url || companyProfile?.logo_data_url || "",
     email: record.email || companyProfile?.email || "",
+    role: authRole(record) || companyProfile?.role || "admin",
     updated_at: record.updated_at || companyProfile?.updated_at || "",
   };
 }
@@ -415,7 +419,7 @@ function participantAccessBlocked(participant) {
 }
 
 function participantCanAccess(participant) {
-  return Boolean(participant && participant.ativo === "True" && !participantAccessBlocked(participant));
+  return Boolean(participant && (participant.ativo === "True" || participant.ativo === true) && !participantAccessBlocked(participant));
 }
 
 function participantFromAuth(record, email, options = {}) {
@@ -429,8 +433,7 @@ function participantFromAuth(record, email, options = {}) {
 
 function isAuthAdmin(record, email) {
   const role = authRole(record);
-  return role === "admin" || role === "adm" || Boolean(record?.admin_id) ||
-    Boolean(email && companyProfile?.email && normalizeEmail(companyProfile.email) === email);
+  return role === "admin" || role === "super_admin" || Boolean(record?.admin_id);
 }
 
 function setAdminSession(admin, authUser = null) {
@@ -438,6 +441,7 @@ function setAdminSession(admin, authUser = null) {
   updateCompanyLabels();
   sessionStorage.setItem("bolao-user", JSON.stringify({
     role: "admin",
+    adminRole: companyProfile.role === "super_admin" ? "super_admin" : "admin",
     name: companyProfile.name || "ADM",
     email: companyProfile.email || authUser?.email || "",
     authUserId: authUser?.id || "",
@@ -492,7 +496,9 @@ function checkSession() {
     byId("mobileMenuButton")?.setAttribute("aria-expanded", "false");
   }
   if (!logged) return;
-  const chipName = currentUser.role === "admin" ? "ADM" : currentUser.name;
+  const chipName = currentUser.role === "admin"
+    ? (currentUser.adminRole === "super_admin" ? "SUPER ADMIN" : "ADM")
+    : currentUser.name;
   byId("userChip").textContent = chipName;
   document.querySelectorAll(".admin-only").forEach((item) => {
     item.classList.toggle("hidden", currentUser.role !== "admin");
@@ -557,9 +563,10 @@ async function setupAuth() {
     const normalizedUserEmail = normalizeEmail(user);
     if (isValidEmail(user)) {
       try {
-        const { user: authUser, linkedUser } = await signInWithAuth(normalizedUserEmail, password);
-        const authParticipant = participantFromAuth(linkedUser, normalizedUserEmail, { includeBlocked: true });
-        if (authParticipant && !isAuthAdmin(linkedUser, normalizedUserEmail)) {
+        const { user: authUser, linkedUser, profileType } = await signInWithAuth(normalizedUserEmail, password);
+        const authParticipant = participantFromAuth(linkedUser, normalizedUserEmail, { includeBlocked: true }) ||
+          (profileType === "participant" ? linkedUser : null);
+        if (profileType === "participant" && authParticipant && !isAuthAdmin(linkedUser, normalizedUserEmail)) {
           if (participantAccessBlocked(authParticipant)) {
             await signOutSupabaseAuth().catch(() => {});
             byId("loginError").textContent = "Acesso bloqueado. Fale com o ADM.";
@@ -573,11 +580,13 @@ async function setupAuth() {
             byId("changePasswordFeedback").textContent = "";
             return;
           }
+          await reloadBolaoData(authParticipant.company_id || activeCompanyId());
           setParticipantSession(authParticipant, authUser);
           return;
         }
-        if (isAuthAdmin(linkedUser, normalizedUserEmail)) {
+        if (profileType === "admin" && isAuthAdmin(linkedUser, normalizedUserEmail)) {
           setAdminSession(linkedUser || { email: normalizedUserEmail }, authUser);
+          await reloadBolaoData(companyProfile.id);
           return;
         }
         await signOutSupabaseAuth().catch(() => {});
@@ -587,17 +596,6 @@ async function setupAuth() {
           return;
         }
       }
-    }
-
-    try {
-      const { admin } = await signInAdmin(user, password);
-      if (admin) {
-        setAdminSession(admin);
-        return;
-      }
-    } catch (error) {
-      byId("loginError").textContent = error.message;
-      return;
     }
 
     const participant = participantes.find((item) =>
@@ -640,18 +638,17 @@ async function setupAuth() {
       return;
     }
 
-    let participant = null;
+    const participant = participantes.find((item) => item.id_participante === pendingPasswordParticipantId);
     try {
-      participant = await updateParticipant(pendingPasswordParticipantId, {
-        password_token: passwordToken(password),
-        must_change_password: false,
+      if (!participant) throw new Error("Participante não encontrado.");
+      await updateSupabasePassword(password);
+      const data = await completeParticipantPasswordChange({
+        companyId: participant.company_id || activeCompanyId(),
+        participantId: pendingPasswordParticipantId,
       });
+      Object.assign(participant, data.participant || { must_change_password: false, password_token: "" });
     } catch (error) {
       byId("changePasswordFeedback").textContent = error.message;
-      return;
-    }
-    if (!participant) {
-      byId("changePasswordFeedback").textContent = "Participante não encontrado.";
       return;
     }
 
@@ -870,7 +867,7 @@ function setupCompanyAdmin() {
       updated_at: new Date().toISOString(),
     };
     try {
-      await saveAdminProfile(companyProfile);
+      companyProfile = await saveAdminProfile(companyProfile);
       updateCompanyLabels();
     } catch (error) {
       byId("companyFeedback").textContent = error.message;
@@ -937,6 +934,7 @@ function activateSection(sectionId) {
   const button = document.querySelector(`.nav-item[data-section="${sectionId}"]`);
   if (button && !button.classList.contains("hidden")) button.classList.add("active");
   byId(sectionId).classList.add("active");
+  if (sectionId === "semifinalistas") renderSemifinalistsConference();
   updateMobileDashboardVisibility();
 }
 
@@ -1386,33 +1384,6 @@ function simulate() {
   renderRanking();
 }
 
-function calculateFinalStagePoints(prediction) {
-  const result = resultadoFinal[0];
-  if (!result) return 0;
-
-  const actualTop4 = [
-    result.real_1_lugar,
-    result.real_2_lugar,
-    result.real_3_lugar,
-    result.real_4_lugar,
-  ];
-  const predictedTop4 = [
-    prediction.palpite_1_lugar,
-    prediction.palpite_2_lugar,
-    prediction.palpite_3_lugar,
-    prediction.palpite_4_lugar,
-  ];
-
-  return predictedTop4.reduce((total, team, index) => {
-    const normalizedTeam = teamKey(team);
-    if (!normalizedTeam) return total;
-    const isInTop4 = actualTop4.some((actualTeam) => teamKey(actualTeam) === normalizedTeam);
-    const exactPosition = teamKey(actualTop4[index]) === normalizedTeam;
-    if (!isInTop4) return total;
-    return total + 10 + (exactPosition ? 5 : 0);
-  }, 0);
-}
-
 async function applyManualResults() {
   const partialGame = jogos.find((game) => {
     const home = byId(`realHome-${game.id_jogo}`).value;
@@ -1791,7 +1762,9 @@ function calculateRanking(filters = { round: "Todas", group: "Todos" }) {
     .map((participant) => {
       const finalPrediction = faseFinal.find((prediction) => prediction.id_participante === participant.id_participante);
       const pointsGames = totals.get(participant.id_participante) || 0;
-      const pointsFinal = includeFinalStage && finalPrediction ? calculateFinalStagePoints(finalPrediction) : 0;
+      const pointsFinal = includeFinalStage && finalPrediction
+        ? (resultadoFinal[0] ? calculateFinalStagePoints(finalPrediction, resultadoFinal[0]) : Number(finalPrediction.pontos_fase_final || 0))
+        : 0;
       return {
         id: participant.id_participante,
         name: participantDisplayName(participant),
@@ -1878,6 +1851,36 @@ function renderMyScore() {
     <article><span>Fase final</span><strong>${participant.pointsFinal}</strong></article>
     <article><span>Total</span><strong>${participant.pointsTotal}</strong></article>
   </div>`;
+}
+
+function formatSemifinalistsList(teams = []) {
+  return teams.filter(Boolean).join(", ") || "-";
+}
+
+async function renderSemifinalistsConference() {
+  const table = byId("semifinalistsTable");
+  if (!table) return;
+  byId("semifinalistsFeedback").textContent = "Carregando conferência...";
+  try {
+    const data = await loadSemifinalistsConference();
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+    table.innerHTML = rows.length
+      ? rows.map((row) => `<tr>
+        <td>${row.nome || "-"}</td>
+        <td>${row.email || "-"}</td>
+        <td>${row.company_id || "-"}</td>
+        <td>${formatSemifinalistsList(row.semifinalistas_escolhidos)}</td>
+        <td>${formatSemifinalistsList(row.semifinalistas_reais)}</td>
+        <td class="score">${row.quantidade_acertos}</td>
+        <td class="score">${row.pontos_obtidos}</td>
+        <td>${row.status}</td>
+      </tr>`).join("")
+      : `<tr><td colspan="8">Nenhum participante encontrado.</td></tr>`;
+    byId("semifinalistsFeedback").textContent = `Status: ${data.status || "-"} | Escopo: ${data.scope || "-"}`;
+  } catch (error) {
+    table.innerHTML = `<tr><td colspan="8">Não foi possível carregar a conferência.</td></tr>`;
+    byId("semifinalistsFeedback").textContent = error.message;
+  }
 }
 
 function renderParticipantsSheet() {
@@ -2158,6 +2161,7 @@ async function boot() {
   byId("simulateButton").addEventListener("click", simulate);
   byId("manualCalculateButton").addEventListener("click", applyManualResults);
   byId("fetchBallResultsButton").addEventListener("click", fetchBallDontLieResults);
+  byId("refreshSemifinalistsButton")?.addEventListener("click", renderSemifinalistsConference);
   byId("linePredictionsButton").addEventListener("click", addLinePredictions);
   byId("linePredictionsButtonBottom").addEventListener("click", addLinePredictions);
   fetchBallResultsWhenCupStarts();

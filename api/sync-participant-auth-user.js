@@ -1,5 +1,11 @@
 const crypto = require("crypto");
 require("dotenv").config({ path: ".env.local" });
+const {
+  assertAdminCompanyAccess,
+  auditLog,
+  requireAdmin,
+  statusFromError,
+} = require("../server/security");
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -131,8 +137,6 @@ module.exports = async function handler(request, response) {
     companyId,
     participantId,
     email,
-    hasSupabaseUrl: Boolean(process.env.SUPABASE_URL),
-    hasServiceRole: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
   });
 
   if (!companyId || !participantId || !EMAIL_PATTERN.test(email)) {
@@ -148,6 +152,8 @@ module.exports = async function handler(request, response) {
   }
 
   try {
+    const { user, admin } = await requireAdmin(request);
+    assertAdminCompanyAccess(admin, companyId);
     const participant = await getParticipant(companyId, participantId);
     if (!participant || participant.ativo === false) {
       log(requestId, "participant_not_found", { companyId, participantId });
@@ -193,6 +199,14 @@ module.exports = async function handler(request, response) {
       authUserId: authUser.id,
       created,
     });
+    await auditLog({
+      actorUserId: user.id,
+      actorRole: admin.role || "admin",
+      companyId: admin.company_id,
+      participantId,
+      action: "participant_auth_linked",
+      details: { requestId, email, authUserId: authUser.id, created },
+    });
     json(response, 200, {
       ok: true,
       created,
@@ -201,6 +215,6 @@ module.exports = async function handler(request, response) {
     });
   } catch (error) {
     log(requestId, "sync_failed", { message: error.message, stack: error.stack });
-    json(response, 500, { error: "Falha ao sincronizar usuario Auth do participante.", details: error.message, requestId });
+    json(response, statusFromError(error), { error: "Falha ao sincronizar usuario Auth do participante.", details: error.message, requestId });
   }
 };

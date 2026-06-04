@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 require("dotenv").config({ path: ".env.local" });
+const { auditLog } = require("../server/security");
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -245,6 +246,14 @@ module.exports = async function handler(request, response) {
     if (!participant?.auth_user_id) {
       throw new Error("Participante salvo sem auth_user_id.");
     }
+    await auditLog({
+      actorUserId: authUser.id,
+      actorRole: "participant",
+      companyId: company.company_id,
+      participantId: participant.id_participante,
+      action: "participant_registered",
+      details: { requestId, email, createdAuthUser: created },
+    });
 
     json(response, 200, {
       ok: true,

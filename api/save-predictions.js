@@ -1,44 +1,15 @@
 const crypto = require("crypto");
-require("dotenv").config({ path: ".env.local" });
+const {
+  auditLog,
+  json,
+  readJson,
+  requireParticipant,
+  statusFromError,
+  supabaseFetch,
+} = require("../server/security");
 
 function log(requestId, step, details = {}) {
   console.log(`[save-predictions:${requestId}] ${step}`, details);
-}
-
-function json(response, status, body) {
-  response.setHeader("Cache-Control", "no-store");
-  response.status(status).json(body);
-}
-
-async function readJson(request) {
-  return typeof request.body === "string" ? JSON.parse(request.body || "{}") : request.body || {};
-}
-
-async function supabaseFetch(path, options = {}) {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const headers = {
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
-  };
-  const response = await fetch(`${supabaseUrl}${path}`, {
-    ...options,
-    headers,
-  });
-  const text = await response.text();
-  let data = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = null;
-  }
-  if (!response.ok) {
-    const message = data?.message || data?.error || text || `HTTP ${response.status}`;
-    throw new Error(message);
-  }
-  return data;
 }
 
 function predictionPayload(prediction, participant) {
@@ -86,11 +57,8 @@ function matchStillOpen(game) {
   return Boolean(matchDate && Date.now() < matchDate.getTime());
 }
 
-async function getParticipant(companyId, participantId) {
-  const rows = await supabaseFetch(
-    `/rest/v1/participantes?company_id=eq.${encodeURIComponent(companyId)}&id_participante=eq.${encodeURIComponent(participantId)}&select=*`
-  );
-  return Array.isArray(rows) ? rows[0] : null;
+function finalStageStillOpen() {
+  return Date.now() < new Date("2026-06-11T00:00:00-03:00").getTime();
 }
 
 async function getGames(gameIds) {
@@ -121,12 +89,6 @@ module.exports = async function handler(request, response) {
     response.setHeader("Allow", "POST");
     log(requestId, "method_not_allowed", { method: request.method });
     json(response, 405, { error: "Method not allowed" });
-    return;
-  }
-
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    log(requestId, "missing_environment");
-    json(response, 500, { error: "Salvamento de palpites nao configurado no ambiente." });
     return;
   }
 
@@ -165,12 +127,27 @@ module.exports = async function handler(request, response) {
     json(response, 400, { error: "Empresa, participante, palpites de jogos e fase final sao obrigatorios." });
     return;
   }
+  const gameIds = matchPredictions.map((prediction) => String(prediction.id_jogo));
+  if (new Set(gameIds).size !== gameIds.length) {
+    json(response, 400, { error: "Payload contem palpites duplicados para o mesmo jogo." });
+    return;
+  }
+  const invalidScore = matchPredictions.find((prediction) =>
+    !Number.isFinite(Number(prediction.id_jogo)) ||
+    !Number.isFinite(Number(prediction.palpite_casa)) ||
+    !Number.isFinite(Number(prediction.palpite_fora)) ||
+    Number(prediction.palpite_casa) < 0 ||
+    Number(prediction.palpite_fora) < 0
+  );
+  if (invalidScore) {
+    json(response, 400, { error: "Palpites devem ter jogo e placares numericos nao negativos." });
+    return;
+  }
 
   try {
-    const participant = await getParticipant(companyId, participantId);
-    if (!participant || participant.ativo === false || participant.access_blocked === true) {
-      log(requestId, "participant_not_allowed", { companyId, participantId });
-      json(response, 403, { error: "Participante sem permissao para salvar palpites." });
+    const { user, participant } = await requireParticipant(request, companyId, participantId);
+    if (!finalStageStillOpen()) {
+      json(response, 403, { error: "Palpite da fase final bloqueado apos o prazo limite." });
       return;
     }
 
@@ -202,6 +179,19 @@ module.exports = async function handler(request, response) {
     });
     const savedMatchPredictions = await upsertMatchPredictions(matchPayload);
     const savedFinalPredictions = await upsertFinalPrediction(finalPayload);
+    await auditLog({
+      actorUserId: user.id,
+      actorRole: "participant",
+      companyId: participant.company_id,
+      participantId: participant.id_participante,
+      action: "predictions_saved",
+      details: {
+        requestId,
+        matchPredictionCount: matchPayload.length,
+        gameIds: matchPayload.map((prediction) => prediction.id_jogo),
+        hasFinalPrediction: Boolean(finalPayload),
+      },
+    });
     log(requestId, "predictions_saved", {
       participantId,
       matchPredictionCount: Array.isArray(savedMatchPredictions) ? savedMatchPredictions.length : 0,
@@ -213,6 +203,6 @@ module.exports = async function handler(request, response) {
     });
   } catch (error) {
     log(requestId, "save_failed", { message: error.message, stack: error.stack });
-    json(response, 500, { error: "Falha ao salvar palpites.", details: error.message, requestId });
+    json(response, statusFromError(error), { error: "Falha ao salvar palpites.", details: error.message, requestId });
   }
 };

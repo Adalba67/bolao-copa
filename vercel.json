@@ -40,8 +40,20 @@
       "dest": "/api/config.js"
     },
     {
-      "src": "/api/reset-admin-password",
-      "dest": "/api/reset-admin-password.js"
+      "src": "/api/public-company",
+      "dest": "/api/public-company.js"
+    },
+    {
+      "src": "/api/auth-profile",
+      "dest": "/api/auth-profile.js"
+    },
+    {
+      "src": "/api/admins",
+      "dest": "/api/admins.js"
+    },
+    {
+      "src": "/api/change-admin-password",
+      "dest": "/api/change-admin-password.js"
     },
     {
       "src": "/api/request-password-reset",
@@ -60,8 +72,28 @@
       "dest": "/api/register-participant.js"
     },
     {
+      "src": "/api/complete-participant-password-change",
+      "dest": "/api/complete-participant-password-change.js"
+    },
+    {
       "src": "/api/save-predictions",
       "dest": "/api/save-predictions.js"
+    },
+    {
+      "src": "/api/save-results",
+      "dest": "/api/save-results.js"
+    },
+    {
+      "src": "/api/save-ranking",
+      "dest": "/api/save-ranking.js"
+    },
+    {
+      "src": "/api/save-admin-profile",
+      "dest": "/api/save-admin-profile.js"
+    },
+    {
+      "src": "/api/semifinalists-conference",
+      "dest": "/api/semifinalists-conference.js"
     },
     {
       "src": "/api/set-participant-access",

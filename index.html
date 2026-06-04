@@ -120,6 +120,7 @@
           <button class="nav-item" data-section="palpites">Palpites Gerais</button>
           <button class="nav-item admin-only" data-section="simulador">Simulador</button>
           <button class="nav-item" data-section="ranking">Ranking</button>
+          <button class="nav-item admin-only desktop-only" data-section="semifinalistas">Conferência Semifinalistas</button>
           <button class="nav-item participant-only" data-section="meuDesempenho">Minha Pontuação</button>
           <button class="nav-item admin-only" data-section="participantesPlanilha">Participantes</button>
           <button class="nav-item admin-only" data-section="lancamento">Salvar Resultados</button>
@@ -368,6 +369,34 @@
           <div class="panel">
             <h3>Minha pontuação</h3>
             <div id="myScoreCard" class="score-card"></div>
+          </div>
+        </section>
+
+        <section id="semifinalistas" class="section">
+          <div class="section-head">
+            <div>
+              <h3>Conferência Semifinalistas</h3>
+              <p>Conferência dos palpites da fase final usando a regra existente de pontuação.</p>
+            </div>
+            <button id="refreshSemifinalistsButton" type="button">Atualizar conferência</button>
+          </div>
+          <div class="panel table-panel">
+            <p id="semifinalistsFeedback" class="feedback" aria-live="polite"></p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Participante</th>
+                  <th>E-mail</th>
+                  <th>Company ID</th>
+                  <th>Escolhidos</th>
+                  <th>Reais</th>
+                  <th>Acertos</th>
+                  <th>Pontos</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="semifinalistsTable"></tbody>
+            </table>
           </div>
         </section>
 
