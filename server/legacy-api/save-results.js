@@ -1,4 +1,4 @@
-const crypto = require("crypto");
+﻿const crypto = require("crypto");
 const {
   auditLog,
   json,
@@ -6,7 +6,7 @@ const {
   requireAdmin,
   statusFromError,
   supabaseFetch,
-} = require("../server/security");
+} = require("../security");
 
 function log(requestId, step, details = {}) {
   console.log(`[save-results:${requestId}] ${step}`, details);
@@ -90,3 +90,4 @@ module.exports = async function handler(request, response) {
     json(response, statusFromError(error), { error: "Falha ao salvar resultados.", details: error.message, requestId });
   }
 };
+

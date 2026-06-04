@@ -1,6 +1,6 @@
-const crypto = require("crypto");
+﻿const crypto = require("crypto");
 require("dotenv").config({ path: ".env.local" });
-const { auditLog } = require("../server/security");
+const { auditLog } = require("../security");
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -270,3 +270,4 @@ module.exports = async function handler(request, response) {
     });
   }
 };
+

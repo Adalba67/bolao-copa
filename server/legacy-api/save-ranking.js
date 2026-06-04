@@ -1,4 +1,4 @@
-const crypto = require("crypto");
+﻿const crypto = require("crypto");
 const {
   assertAdminCompanyAccess,
   auditLog,
@@ -7,7 +7,7 @@ const {
   requireAdmin,
   statusFromError,
   supabaseFetch,
-} = require("../server/security");
+} = require("../security");
 
 function rankingPayloadItem(item, index, companyId) {
   return {
@@ -76,3 +76,4 @@ module.exports = async function handler(request, response) {
     json(response, statusFromError(error), { error: "Falha ao salvar ranking.", details: error.message, requestId });
   }
 };
+

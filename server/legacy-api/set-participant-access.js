@@ -1,4 +1,4 @@
-const crypto = require("crypto");
+﻿const crypto = require("crypto");
 const {
   assertAdminCompanyAccess,
   auditLog,
@@ -7,7 +7,7 @@ const {
   requireAdmin,
   statusFromError,
   supabaseFetch,
-} = require("../server/security");
+} = require("../security");
 
 function log(requestId, step, details = {}) {
   console.log(`[set-participant-access:${requestId}] ${step}`, details);
@@ -86,3 +86,4 @@ module.exports = async function handler(request, response) {
     json(response, statusFromError(error), { error: "Falha ao alterar acesso do participante.", details: error.message, requestId });
   }
 };
+

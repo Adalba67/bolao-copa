@@ -48,56 +48,60 @@
       "dest": "/api/auth-profile.js"
     },
     {
+      "src": "/api/admin",
+      "dest": "/api/admin.js"
+    },
+    {
       "src": "/api/admins",
-      "dest": "/api/admins.js"
+      "dest": "/api/admin.js"
     },
     {
       "src": "/api/change-admin-password",
-      "dest": "/api/change-admin-password.js"
-    },
-    {
-      "src": "/api/request-password-reset",
-      "dest": "/api/request-password-reset.js"
-    },
-    {
-      "src": "/api/reset-password",
-      "dest": "/api/reset-password.js"
+      "dest": "/api/admin.js"
     },
     {
       "src": "/api/sync-participant-auth-user",
-      "dest": "/api/sync-participant-auth-user.js"
-    },
-    {
-      "src": "/api/register-participant",
-      "dest": "/api/register-participant.js"
-    },
-    {
-      "src": "/api/complete-participant-password-change",
-      "dest": "/api/complete-participant-password-change.js"
-    },
-    {
-      "src": "/api/save-predictions",
-      "dest": "/api/save-predictions.js"
-    },
-    {
-      "src": "/api/save-results",
-      "dest": "/api/save-results.js"
-    },
-    {
-      "src": "/api/save-ranking",
-      "dest": "/api/save-ranking.js"
+      "dest": "/api/admin.js"
     },
     {
       "src": "/api/save-admin-profile",
-      "dest": "/api/save-admin-profile.js"
-    },
-    {
-      "src": "/api/semifinalists-conference",
-      "dest": "/api/semifinalists-conference.js"
+      "dest": "/api/admin.js"
     },
     {
       "src": "/api/set-participant-access",
-      "dest": "/api/set-participant-access.js"
+      "dest": "/api/admin.js"
+    },
+    {
+      "src": "/api/participant",
+      "dest": "/api/participant.js"
+    },
+    {
+      "src": "/api/register-participant",
+      "dest": "/api/participant.js"
+    },
+    {
+      "src": "/api/complete-participant-password-change",
+      "dest": "/api/participant.js"
+    },
+    {
+      "src": "/api/save-predictions",
+      "dest": "/api/participant.js"
+    },
+    {
+      "src": "/api/results",
+      "dest": "/api/results.js"
+    },
+    {
+      "src": "/api/save-results",
+      "dest": "/api/results.js"
+    },
+    {
+      "src": "/api/save-ranking",
+      "dest": "/api/results.js"
+    },
+    {
+      "src": "/api/semifinalists-conference",
+      "dest": "/api/results.js"
     },
     {
       "src": "/(.*)",

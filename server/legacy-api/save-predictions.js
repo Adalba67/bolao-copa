@@ -1,4 +1,4 @@
-const crypto = require("crypto");
+﻿const crypto = require("crypto");
 const {
   auditLog,
   json,
@@ -6,7 +6,7 @@ const {
   requireParticipant,
   statusFromError,
   supabaseFetch,
-} = require("../server/security");
+} = require("../security");
 
 function log(requestId, step, details = {}) {
   console.log(`[save-predictions:${requestId}] ${step}`, details);
@@ -206,3 +206,4 @@ module.exports = async function handler(request, response) {
     json(response, statusFromError(error), { error: "Falha ao salvar palpites.", details: error.message, requestId });
   }
 };
+

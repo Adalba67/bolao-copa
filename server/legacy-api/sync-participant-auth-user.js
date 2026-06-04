@@ -1,11 +1,11 @@
-const crypto = require("crypto");
+﻿const crypto = require("crypto");
 require("dotenv").config({ path: ".env.local" });
 const {
   assertAdminCompanyAccess,
   auditLog,
   requireAdmin,
   statusFromError,
-} = require("../server/security");
+} = require("../security");
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -218,3 +218,4 @@ module.exports = async function handler(request, response) {
     json(response, statusFromError(error), { error: "Falha ao sincronizar usuario Auth do participante.", details: error.message, requestId });
   }
 };
+

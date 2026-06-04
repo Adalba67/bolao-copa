@@ -1,4 +1,4 @@
-const crypto = require("crypto");
+﻿const crypto = require("crypto");
 const {
   auditLog,
   json,
@@ -6,7 +6,7 @@ const {
   requireParticipant,
   statusFromError,
   supabaseFetch,
-} = require("../server/security");
+} = require("../security");
 
 module.exports = async function handler(request, response) {
   const requestId = crypto.randomBytes(4).toString("hex");
@@ -58,3 +58,4 @@ module.exports = async function handler(request, response) {
     json(response, statusFromError(error), { error: "Falha ao concluir troca de senha.", details: error.message, requestId });
   }
 };
+

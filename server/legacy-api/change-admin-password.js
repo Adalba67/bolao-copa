@@ -1,4 +1,4 @@
-const crypto = require("crypto");
+﻿const crypto = require("crypto");
 const {
   auditLog,
   json,
@@ -7,7 +7,7 @@ const {
   requireEnvironment,
   statusFromError,
   supabaseFetch,
-} = require("../server/security");
+} = require("../security");
 
 async function verifyCurrentPassword(email, password) {
   requireEnvironment();
@@ -77,3 +77,4 @@ module.exports = async function handler(request, response) {
     json(response, statusFromError(error), { error: "Falha ao alterar senha ADM.", details: error.message, requestId });
   }
 };
+

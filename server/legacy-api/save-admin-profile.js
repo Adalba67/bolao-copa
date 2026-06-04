@@ -1,4 +1,4 @@
-const crypto = require("crypto");
+﻿const crypto = require("crypto");
 const {
   auditLog,
   json,
@@ -6,7 +6,7 @@ const {
   requireAdmin,
   statusFromError,
   supabaseFetch,
-} = require("../server/security");
+} = require("../security");
 
 function clean(value) {
   return String(value || "").trim();
@@ -84,3 +84,4 @@ module.exports = async function handler(request, response) {
     json(response, statusFromError(error), { error: "Falha ao salvar Cadastro ADM.", details: error.message, requestId });
   }
 };
+

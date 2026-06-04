@@ -228,10 +228,10 @@ async function authHeaders() {
 
 export async function syncParticipantAuthUser({ companyId, participantId, email }) {
   console.info("[syncParticipantAuthUser] chamando endpoint", { companyId, participantId, email });
-  const response = await fetch("/api/sync-participant-auth-user", {
+  const response = await fetch("/api/admin", {
     method: "POST",
     headers: await authHeaders(),
-    body: JSON.stringify({ companyId, participantId, email }),
+    body: JSON.stringify({ action: "syncParticipantAuthUser", companyId, participantId, email }),
   });
   const data = await response.json().catch(() => ({}));
   console.info("[syncParticipantAuthUser] resposta do endpoint", {
@@ -249,10 +249,10 @@ export async function syncParticipantAuthUser({ companyId, participantId, email 
 }
 
 export async function registerParticipantAccount({ companyId, firstName, lastName, phone, email, password, login }) {
-  const response = await fetch("/api/register-participant", {
+  const response = await fetch("/api/participant", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ companyId, firstName, lastName, phone, email, password, login }),
+    body: JSON.stringify({ action: "register", companyId, firstName, lastName, phone, email, password, login }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -266,10 +266,10 @@ export async function registerParticipantAccount({ companyId, firstName, lastNam
 }
 
 export async function setParticipantAccessBlocked({ companyId, participantId, accessBlocked }) {
-  const response = await fetch("/api/set-participant-access", {
+  const response = await fetch("/api/admin", {
     method: "POST",
     headers: await authHeaders(),
-    body: JSON.stringify({ companyId, participantId, accessBlocked }),
+    body: JSON.stringify({ action: "setParticipantAccess", companyId, participantId, accessBlocked }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -280,10 +280,10 @@ export async function setParticipantAccessBlocked({ companyId, participantId, ac
 }
 
 export async function completeParticipantPasswordChange({ companyId, participantId }) {
-  const response = await fetch("/api/complete-participant-password-change", {
+  const response = await fetch("/api/participant", {
     method: "POST",
     headers: await authHeaders(),
-    body: JSON.stringify({ companyId, participantId }),
+    body: JSON.stringify({ action: "completePasswordChange", companyId, participantId }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -294,10 +294,10 @@ export async function completeParticipantPasswordChange({ companyId, participant
 }
 
 export async function changeAdminPassword(currentPassword, newPassword) {
-  const response = await fetch("/api/change-admin-password", {
+  const response = await fetch("/api/admin", {
     method: "POST",
     headers: await authHeaders(),
-    body: JSON.stringify({ currentPassword, newPassword }),
+    body: JSON.stringify({ action: "changePassword", currentPassword, newPassword }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -307,10 +307,10 @@ export async function changeAdminPassword(currentPassword, newPassword) {
 }
 
 export async function saveAdminProfile(profile) {
-  const response = await fetch("/api/save-admin-profile", {
+  const response = await fetch("/api/admin", {
     method: "POST",
     headers: await authHeaders(),
-    body: JSON.stringify({ profile }),
+    body: JSON.stringify({ action: "saveProfile", profile }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -326,10 +326,10 @@ export async function savePredictionSetToSupabase(matchPredictions, finalPredict
     throw new Error("Os palpites devem pertencer a um unico participante.");
   }
 
-  const response = await fetch("/api/save-predictions", {
+  const response = await fetch("/api/participant", {
     method: "POST",
     headers: await authHeaders(),
-    body: JSON.stringify({ matchPredictions, finalPrediction }),
+    body: JSON.stringify({ action: "savePredictions", matchPredictions, finalPrediction }),
   });
   const data = await response.json().catch(() => ({}));
   console.info("[savePredictionSetToSupabase] resposta do endpoint", {
@@ -352,10 +352,10 @@ export async function savePredictionSetToSupabase(matchPredictions, finalPredict
 }
 
 export async function saveMatchResults(results, finalResult) {
-  const response = await fetch("/api/save-results", {
+  const response = await fetch("/api/results", {
     method: "POST",
     headers: await authHeaders(),
-    body: JSON.stringify({ results, finalResult }),
+    body: JSON.stringify({ action: "saveResults", results, finalResult }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -366,10 +366,10 @@ export async function saveMatchResults(results, finalResult) {
 
 export async function saveRanking(ranking, companyId) {
   if (!ranking.length) return { ok: true, ranking: [] };
-  const response = await fetch("/api/save-ranking", {
+  const response = await fetch("/api/results", {
     method: "POST",
     headers: await authHeaders(),
-    body: JSON.stringify({ ranking, companyId }),
+    body: JSON.stringify({ action: "saveRanking", ranking, companyId }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -379,7 +379,7 @@ export async function saveRanking(ranking, companyId) {
 }
 
 export async function loadSemifinalistsConference() {
-  const response = await fetch("/api/semifinalists-conference", {
+  const response = await fetch("/api/results?action=semifinalistsConference", {
     method: "GET",
     headers: await authHeaders(),
   });

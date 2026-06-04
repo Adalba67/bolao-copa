@@ -10,28 +10,31 @@ def read(path: str) -> str:
 
 def test_sensitive_api_routes_require_auth_helpers():
     sensitive_apis = [
-        "api/save-predictions.js",
-        "api/save-results.js",
-        "api/save-ranking.js",
-        "api/save-admin-profile.js",
-        "api/change-admin-password.js",
-        "api/admins.js",
-        "api/set-participant-access.js",
-        "api/sync-participant-auth-user.js",
-        "api/complete-participant-password-change.js",
-        "api/semifinalists-conference.js",
+        "server/legacy-api/save-predictions.js",
+        "server/legacy-api/save-results.js",
+        "server/legacy-api/save-ranking.js",
+        "server/legacy-api/save-admin-profile.js",
+        "server/legacy-api/change-admin-password.js",
+        "server/legacy-api/admins.js",
+        "server/legacy-api/set-participant-access.js",
+        "server/legacy-api/sync-participant-auth-user.js",
+        "server/legacy-api/complete-participant-password-change.js",
+        "server/legacy-api/semifinalists-conference.js",
     ]
 
     for api_file in sensitive_apis:
         source = read(api_file)
         assert "requireAdmin" in source or "requireParticipant" in source or "requireSuperAdmin" in source
-        assert "../server/security" in source
+        assert "../security" in source
 
 
 def test_vercel_routes_include_security_api_endpoints():
     vercel_json = read("vercel.json")
 
     for route in [
+        "/api/admin",
+        "/api/participant",
+        "/api/results",
         "/api/register-participant",
         "/api/complete-participant-password-change",
         "/api/semifinalists-conference",
@@ -74,18 +77,18 @@ def test_frontend_sends_authorization_to_sensitive_apis():
     repository = read("src/lib/bolaoRepository.js")
 
     assert "async function authHeaders()" in repository
-    for endpoint in [
-        '"/api/save-predictions"',
-        '"/api/save-results"',
-        '"/api/save-ranking"',
-        '"/api/save-admin-profile"',
-        '"/api/change-admin-password"',
-        '"/api/set-participant-access"',
-        '"/api/sync-participant-auth-user"',
-        '"/api/complete-participant-password-change"',
-        '"/api/semifinalists-conference"',
+    for action in [
+        '"savePredictions"',
+        '"saveResults"',
+        '"saveRanking"',
+        '"saveProfile"',
+        '"changePassword"',
+        '"setParticipantAccess"',
+        '"syncParticipantAuthUser"',
+        '"completePasswordChange"',
+        "semifinalistsConference",
     ]:
-        assert endpoint in repository
+        assert action in repository
 
 
 def test_super_admin_migration_defines_scoped_roles():
@@ -110,8 +113,7 @@ def test_frontend_does_not_call_admin_profile_rpc_directly():
     assert "rpc('change_admin_password'" not in repository
     assert 'rpc("authenticate_admin"' not in repository
     assert "rpc('authenticate_admin'" not in repository
-    assert '"/api/save-admin-profile"' in repository
-    assert '"/api/change-admin-password"' in repository
+    assert '"/api/admin"' in repository
     assert '"/api/admin-login"' not in repository
     assert '"/api/auth-profile"' in repository
 
@@ -124,7 +126,7 @@ def test_legacy_admin_login_route_removed():
 
 
 def test_admin_password_uses_supabase_auth_not_legacy_rpc():
-    source = read("api/change-admin-password.js")
+    source = read("server/legacy-api/change-admin-password.js")
 
     assert "change_admin_password" not in source
     assert "/auth/v1/token?grant_type=password" in source
@@ -146,7 +148,7 @@ def test_remove_legacy_admin_auth_migration_drops_rpc_functions():
 
 
 def test_super_admin_management_endpoint_requires_super_admin():
-    source = read("api/admins.js")
+    source = read("server/legacy-api/admins.js")
 
     assert "requireSuperAdmin" in source
     for action in [

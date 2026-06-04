@@ -1,11 +1,11 @@
-const crypto = require("crypto");
+﻿const crypto = require("crypto");
 const {
   auditLog,
   json,
   requireAdmin,
   statusFromError,
   supabaseFetch,
-} = require("../server/security");
+} = require("../security");
 
 function realTop4(result) {
   return [
@@ -35,7 +35,7 @@ module.exports = async function handler(request, response) {
 
   try {
     const { calculateFinalStageDetails, calculateFinalStagePoints, finalResultStatus, teamKey } =
-      await import("../src/lib/finalStageRules.mjs");
+      await import("../../src/lib/finalStageRules.mjs");
     const { user, admin } = await requireAdmin(request);
     const resultRows = await supabaseFetch("/rest/v1/resultado_final?select=*&order=id.desc&limit=1");
     const result = Array.isArray(resultRows) ? resultRows[0] : null;
@@ -95,3 +95,4 @@ module.exports = async function handler(request, response) {
     json(response, statusFromError(error), { error: "Falha ao carregar conferencia de semifinalistas.", details: error.message, requestId });
   }
 };
+

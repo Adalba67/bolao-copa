@@ -1,4 +1,4 @@
-const crypto = require("crypto");
+﻿const crypto = require("crypto");
 const {
   auditLog,
   json,
@@ -6,7 +6,7 @@ const {
   requireSuperAdmin,
   statusFromError,
   supabaseFetch,
-} = require("../server/security");
+} = require("../security");
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -208,3 +208,4 @@ module.exports = async function handler(request, response) {
     json(response, statusFromError(error), { error: "Falha na gestao de ADM cliente.", details: error.message, requestId });
   }
 };
+
