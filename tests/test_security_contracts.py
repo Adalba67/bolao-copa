@@ -158,3 +158,18 @@ def test_super_admin_management_endpoint_requires_super_admin():
         "admin_client_access_reset",
     ]:
         assert action in source
+
+
+def test_admins_rls_recursion_fix_uses_security_definer_helpers():
+    migration = read("supabase/migrations/20260605090000_fix_admins_rls_recursion.sql")
+
+    assert "security definer" in migration
+    assert "auth_is_super_admin" in migration
+    assert "auth_admin_company_id" in migration
+    assert 'drop policy if exists "admins_select_own_profile" on public.admins' in migration
+    assert 'drop policy if exists "admins_update_own_profile" on public.admins' in migration
+    assert 'drop policy if exists "admins_select_company_audit_logs" on public.audit_logs' in migration
+
+    admins_policy_section = migration.split('create policy "admins_select_own_profile"')[1]
+    admins_policy_section = admins_policy_section.split('drop policy if exists "admins_select_company_audit_logs"')[0]
+    assert "from public.admins" not in admins_policy_section
