@@ -713,8 +713,9 @@ async function setupAuth() {
 
     try {
       byId("registerFeedback").textContent = "Criando usuario no Supabase Auth...";
+      const companyId = currentCompany?.id || activeCompanyId();
       const { participant: savedParticipant } = await registerParticipantAccount({
-        companyId: currentCompany.id,
+        companyId,
         firstName,
         lastName,
         phone,

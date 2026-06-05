@@ -252,7 +252,7 @@ export async function registerParticipantAccount({ companyId, firstName, lastNam
   const response = await fetch("/api/participant", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "register", companyId, firstName, lastName, phone, email, password, login }),
+    body: JSON.stringify({ action: "register", companyId, company_id: companyId, firstName, lastName, phone, email, password, login }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {

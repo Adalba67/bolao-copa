@@ -123,6 +123,19 @@ async function getCompany(companyId) {
   return Array.isArray(rows) ? rows[0] : null;
 }
 
+async function getPublicCompany() {
+  const companyId = String(
+    process.env.SUPABASE_PUBLIC_COMPANY_ID ||
+      process.env.PUBLIC_COMPANY_ID ||
+      ""
+  ).trim();
+  const query = companyId
+    ? `/rest/v1/admins?company_id=eq.${encodeURIComponent(companyId)}&select=company_id,name&limit=1`
+    : "/rest/v1/admins?select=company_id,name&role=neq.super_admin&order=created_at.asc&limit=1";
+  const rows = await supabaseFetch(query);
+  return Array.isArray(rows) ? rows[0] : null;
+}
+
 async function getCompanyParticipants(companyId) {
   const rows = await supabaseFetch(
     `/rest/v1/participantes?company_id=eq.${encodeURIComponent(companyId)}&select=*&order=id_participante.asc`
@@ -181,7 +194,7 @@ module.exports = async function handler(request, response) {
     return;
   }
 
-  const companyId = String(body.companyId || "").trim();
+  let companyId = String(body.companyId || body.company_id || "").trim();
   const firstName = String(body.firstName || "").trim();
   const lastName = String(body.lastName || "").trim();
   const phone = String(body.phone || "").trim();
@@ -189,7 +202,7 @@ module.exports = async function handler(request, response) {
   const password = String(body.password || "");
   const login = String(body.login || email).trim();
 
-  if (!companyId || !firstName || !lastName || !phone || !EMAIL_PATTERN.test(email)) {
+  if (!firstName || !lastName || !phone || !EMAIL_PATTERN.test(email)) {
     json(response, 400, { error: "Empresa, nome, sobrenome, telefone e e-mail valido sao obrigatorios." });
     return;
   }
@@ -199,7 +212,11 @@ module.exports = async function handler(request, response) {
   }
 
   try {
-    const company = await getCompany(companyId);
+    let company = companyId ? await getCompany(companyId) : null;
+    if (!company) {
+      company = await getPublicCompany();
+      companyId = String(company?.company_id || "").trim();
+    }
     if (!company) {
       json(response, 404, { error: "Empresa nao encontrada para cadastro." });
       return;
