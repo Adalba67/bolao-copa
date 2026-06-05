@@ -187,10 +187,10 @@ module.exports = async function handler(request, response) {
   const phone = String(body.phone || "").trim();
   const email = normalizeEmail(body.email);
   const password = String(body.password || "");
-  const login = String(body.login || "").trim();
+  const login = String(body.login || email).trim();
 
-  if (!companyId || !firstName || !lastName || !phone || !login || !EMAIL_PATTERN.test(email)) {
-    json(response, 400, { error: "Empresa, nome, sobrenome, telefone, login e e-mail valido sao obrigatorios." });
+  if (!companyId || !firstName || !lastName || !phone || !EMAIL_PATTERN.test(email)) {
+    json(response, 400, { error: "Empresa, nome, sobrenome, telefone e e-mail valido sao obrigatorios." });
     return;
   }
   if (password.length < 6) {
