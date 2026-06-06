@@ -391,7 +391,7 @@ function participantDisplayName(participant) {
 }
 
 function activeParticipantId() {
-  return currentUser && currentUser.role === "participant" ? currentUser.participantId : null;
+  return currentUser && currentUser.role === "participant" ? String(currentUser.participantId) : null;
 }
 
 function companyProfileFromAuthAdmin(record) {
@@ -467,7 +467,7 @@ function setParticipantSession(participant, authUser = null) {
     role: "participant",
     name: participantDisplayName(participant),
     email: participant.email || authUser?.email || "",
-    participantId: participant.id_participante,
+    participantId: String(participant.id_participante),
     authUserId: authUser?.id || "",
     auth: Boolean(authUser),
   }));
@@ -478,7 +478,9 @@ function setParticipantSession(participant, authUser = null) {
 function checkSession() {
   currentUser = JSON.parse(sessionStorage.getItem("bolao-user") || "null");
   if (currentUser?.role === "participant") {
-    const participant = participantes.find((item) => item.id_participante === currentUser.participantId);
+    const participant = participantes.find(
+      (item) => String(item.id_participante) === String(currentUser.participantId)
+    );
     if (!participantCanAccess(participant)) {
       sessionStorage.removeItem("bolao-user");
       currentUser = null;

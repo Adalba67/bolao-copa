@@ -173,3 +173,10 @@ def test_admins_rls_recursion_fix_uses_security_definer_helpers():
     admins_policy_section = migration.split('create policy "admins_select_own_profile"')[1]
     admins_policy_section = admins_policy_section.split('drop policy if exists "admins_select_company_audit_logs"')[0]
     assert "from public.admins" not in admins_policy_section
+
+
+def test_participant_session_normalizes_auth_profile_id_before_access_check():
+    source = read("app.js")
+
+    assert "participantId: String(participant.id_participante)" in source
+    assert "String(item.id_participante) === String(currentUser.participantId)" in source
