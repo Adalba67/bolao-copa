@@ -41,6 +41,17 @@ async function linkParticipant(participant, user) {
   return first(rows) || participant;
 }
 
+function normalizeParticipantProfile(participant) {
+  return {
+    ...participant,
+    id_participante: String(participant.id_participante),
+    ativo: participant.ativo === true || String(participant.ativo).toLowerCase() === "true",
+    access_blocked:
+      participant.access_blocked === true ||
+      String(participant.access_blocked).toLowerCase() === "true",
+  };
+}
+
 module.exports = async function handler(request, response) {
   const requestId = crypto.randomBytes(4).toString("hex");
   if (request.method !== "GET") {
@@ -64,8 +75,10 @@ module.exports = async function handler(request, response) {
       return;
     }
 
+    let participantSource = "auth_user_id";
     let participant = await findParticipantByAuth(user.id);
     if (!participant) {
+      participantSource = "email";
       participant = await findParticipantByEmail(normalizeEmail(user.email));
       if (participant) participant = await linkParticipant(participant, user);
     }
@@ -75,6 +88,17 @@ module.exports = async function handler(request, response) {
       return;
     }
 
+    participant = normalizeParticipantProfile(participant);
+    console.info("[auth-profile-debug]", {
+      requestId,
+      participantSource,
+      authUserId: user.id,
+      participantId: participant.id_participante,
+      participantIdType: typeof participant.id_participante,
+      companyId: participant.company_id,
+      ativo: participant.ativo,
+      accessBlocked: participant.access_blocked,
+    });
     await auditLog({
       actorUserId: user.id,
       actorRole: "participant",
@@ -88,4 +112,3 @@ module.exports = async function handler(request, response) {
     json(response, statusFromError(error), { error: "Falha ao carregar perfil Auth.", details: error.message, requestId });
   }
 };
-

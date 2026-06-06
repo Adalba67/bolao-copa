@@ -1,4 +1,5 @@
 import { formatSupabaseError, getSupabaseClient } from "./supabaseClient.js";
+import { normalizeParticipantAccessRecord } from "./participantAccess.mjs";
 
 function asString(value) {
   return value === null || value === undefined ? "" : String(value);
@@ -9,12 +10,7 @@ function asBoolean(value) {
 }
 
 function normalizeParticipant(participant) {
-  return {
-    ...participant,
-    id_participante: asString(participant.id_participante),
-    ativo: participant.ativo === true || participant.ativo === "True" ? "True" : "False",
-    access_blocked: asBoolean(participant.access_blocked),
-  };
+  return normalizeParticipantAccessRecord(participant);
 }
 
 function normalizeGame(game) {
@@ -149,6 +145,9 @@ export async function loadAuthProfile() {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || data.details || "Falha ao carregar perfil Auth.");
+  if (data.type === "participant" && data.profile) {
+    data.profile = normalizeParticipant(data.profile);
+  }
   return data;
 }
 

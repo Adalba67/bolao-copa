@@ -19,6 +19,13 @@
   updateSupabasePassword,
 } from "./src/lib/bolaoRepository.js";
 import { calculateFinalStagePoints, teamKey } from "./src/lib/finalStageRules.mjs";
+import {
+  findParticipantById,
+  normalizeParticipantId,
+  participantAccessBlocked,
+  participantCanAccess,
+  participantIsActive,
+} from "./src/lib/participantAccess.mjs";
 
 let jogos = [];
 let selecoes = [];
@@ -391,7 +398,9 @@ function participantDisplayName(participant) {
 }
 
 function activeParticipantId() {
-  return currentUser && currentUser.role === "participant" ? String(currentUser.participantId) : null;
+  return currentUser && currentUser.role === "participant"
+    ? normalizeParticipantId(currentUser.participantId)
+    : null;
 }
 
 function companyProfileFromAuthAdmin(record) {
@@ -414,18 +423,14 @@ function authRole(record) {
   return String(record?.role || record?.user_type || record?.profile_type || record?.type || "").toLowerCase();
 }
 
-function participantAccessBlocked(participant) {
-  return participant?.access_blocked === true || String(participant?.access_blocked).toLowerCase() === "true";
-}
-
-function participantCanAccess(participant) {
-  return Boolean(participant && (participant.ativo === "True" || participant.ativo === true) && !participantAccessBlocked(participant));
+function logParticipantAuthDebug(step, details = {}) {
+  console.info("[participant-auth-debug]", step, details);
 }
 
 function participantFromAuth(record, email, options = {}) {
   const participantId = record?.id_participante || record?.participant_id;
   return participantes.find((item) =>
-    (options.includeBlocked ? item.ativo === "True" : participantCanAccess(item)) &&
+    (options.includeBlocked ? true : participantCanAccess(item)) &&
     ((participantId && String(item.id_participante) === String(participantId)) ||
       (email && item.email && normalizeEmail(item.email) === email))
   );
@@ -452,6 +457,14 @@ function setAdminSession(admin, authUser = null) {
 }
 
 function setParticipantSession(participant, authUser = null) {
+  logParticipantAuthDebug("set-session", {
+    profileId: participant?.id_participante,
+    profileIdType: typeof participant?.id_participante,
+    ativo: participant?.ativo,
+    accessBlocked: participant?.access_blocked,
+    canAccess: participantCanAccess(participant),
+    companyId: participant?.company_id,
+  });
   if (!participantCanAccess(participant)) {
     byId("loginError").textContent = "Acesso bloqueado. Fale com o ADM.";
     return;
@@ -467,7 +480,7 @@ function setParticipantSession(participant, authUser = null) {
     role: "participant",
     name: participantDisplayName(participant),
     email: participant.email || authUser?.email || "",
-    participantId: String(participant.id_participante),
+    participantId: normalizeParticipantId(participant.id_participante),
     authUserId: authUser?.id || "",
     auth: Boolean(authUser),
   }));
@@ -478,10 +491,23 @@ function setParticipantSession(participant, authUser = null) {
 function checkSession() {
   currentUser = JSON.parse(sessionStorage.getItem("bolao-user") || "null");
   if (currentUser?.role === "participant") {
-    const participant = participantes.find(
-      (item) => String(item.id_participante) === String(currentUser.participantId)
-    );
-    if (!participantCanAccess(participant)) {
+    const participant = findParticipantById(participantes, currentUser.participantId);
+    logParticipantAuthDebug("check-session", {
+      sessionId: currentUser.participantId,
+      sessionIdType: typeof currentUser.participantId,
+      participantId: participant?.id_participante,
+      participantIdType: typeof participant?.id_participante,
+      participantFound: Boolean(participant),
+      ativo: participant?.ativo,
+      accessBlocked: participant?.access_blocked,
+      canAccess: participantCanAccess(participant),
+      loadedParticipantIds: participantes.map((item) => item.id_participante),
+    });
+    if (!participant) {
+      sessionStorage.removeItem("bolao-user");
+      currentUser = null;
+      byId("loginError").textContent = "Perfil de participante não encontrado. Entre novamente.";
+    } else if (!participantCanAccess(participant)) {
       sessionStorage.removeItem("bolao-user");
       currentUser = null;
       byId("loginError").textContent = "Acesso bloqueado. Fale com o ADM.";
@@ -566,10 +592,19 @@ async function setupAuth() {
     if (isValidEmail(user)) {
       try {
         const { user: authUser, linkedUser, profileType } = await signInWithAuth(normalizedUserEmail, password);
+        logParticipantAuthDebug("auth-profile-returned", {
+          profileType,
+          profileId: linkedUser?.id_participante,
+          profileIdType: typeof linkedUser?.id_participante,
+          ativo: linkedUser?.ativo,
+          accessBlocked: linkedUser?.access_blocked,
+          canAccess: participantCanAccess(linkedUser),
+          companyId: linkedUser?.company_id,
+        });
         const authParticipant = participantFromAuth(linkedUser, normalizedUserEmail, { includeBlocked: true }) ||
           (profileType === "participant" ? linkedUser : null);
         if (profileType === "participant" && authParticipant && !isAuthAdmin(linkedUser, normalizedUserEmail)) {
-          if (participantAccessBlocked(authParticipant)) {
+          if (!participantIsActive(authParticipant) || participantAccessBlocked(authParticipant)) {
             await signOutSupabaseAuth().catch(() => {});
             byId("loginError").textContent = "Acesso bloqueado. Fale com o ADM.";
             return;
@@ -583,7 +618,23 @@ async function setupAuth() {
             return;
           }
           await reloadBolaoData(authParticipant.company_id || activeCompanyId());
-          setParticipantSession(authParticipant, authUser);
+          const loadedParticipant = participantFromAuth(linkedUser, normalizedUserEmail, { includeBlocked: true });
+          logParticipantAuthDebug("company-participants-loaded", {
+            authProfileId: linkedUser?.id_participante,
+            loadedParticipantId: loadedParticipant?.id_participante,
+            loadedParticipantIdType: typeof loadedParticipant?.id_participante,
+            loadedParticipantFound: Boolean(loadedParticipant),
+            ativo: loadedParticipant?.ativo,
+            accessBlocked: loadedParticipant?.access_blocked,
+            canAccess: participantCanAccess(loadedParticipant),
+            loadedParticipantIds: participantes.map((item) => item.id_participante),
+          });
+          if (!loadedParticipant) {
+            await signOutSupabaseAuth().catch(() => {});
+            byId("loginError").textContent = "Perfil de participante não encontrado. Fale com o ADM.";
+            return;
+          }
+          setParticipantSession(loadedParticipant, authUser);
           return;
         }
         if (profileType === "admin" && isAuthAdmin(linkedUser, normalizedUserEmail)) {

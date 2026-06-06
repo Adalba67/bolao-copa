@@ -178,5 +178,22 @@ def test_admins_rls_recursion_fix_uses_security_definer_helpers():
 def test_participant_session_normalizes_auth_profile_id_before_access_check():
     source = read("app.js")
 
-    assert "participantId: String(participant.id_participante)" in source
-    assert "String(item.id_participante) === String(currentUser.participantId)" in source
+    assert "participantId: normalizeParticipantId(participant.id_participante)" in source
+    assert "findParticipantById(participantes, currentUser.participantId)" in source
+    assert 'logParticipantAuthDebug("auth-profile-returned"' in source
+    assert 'logParticipantAuthDebug("company-participants-loaded"' in source
+
+
+def test_auth_profile_normalizes_and_logs_participant_access_fields():
+    source = read("api/auth-profile.js")
+
+    assert "normalizeParticipantProfile(participant)" in source
+    assert 'console.info("[auth-profile-debug]"' in source
+    for field in [
+        "participantId",
+        "participantIdType",
+        "companyId",
+        "ativo",
+        "accessBlocked",
+    ]:
+        assert field in source
