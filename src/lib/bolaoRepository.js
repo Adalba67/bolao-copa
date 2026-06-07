@@ -128,7 +128,9 @@ export async function signInWithAuth(login, password) {
   });
   if (authError) throw new Error(formatSupabaseError(authError, "Login Supabase Auth invalido."));
 
-  const profile = await loadAuthProfile();
+  const accessToken = authData?.session?.access_token;
+  if (!accessToken) throw new Error("Sessao Supabase Auth nao foi criada.");
+  const profile = await loadAuthProfile(accessToken);
 
   return {
     session: authData?.session || null,
@@ -138,10 +140,10 @@ export async function signInWithAuth(login, password) {
   };
 }
 
-export async function loadAuthProfile() {
+export async function loadAuthProfile(accessToken = "") {
   const response = await fetch("/api/auth-profile", {
     method: "GET",
-    headers: await authHeaders(),
+    headers: await authHeaders(accessToken),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || data.details || "Falha ao carregar perfil Auth.");
@@ -149,6 +151,22 @@ export async function loadAuthProfile() {
     data.profile = normalizeParticipant(data.profile);
   }
   return data;
+}
+
+export async function getCurrentAuthContext() {
+  const client = await getSupabaseClient();
+  const { data, error } = await client.auth.getSession();
+  if (error) throw new Error(formatSupabaseError(error, "Falha ao recuperar sessao Supabase Auth."));
+  const session = data?.session || null;
+  if (!session?.access_token) return null;
+
+  const profile = await loadAuthProfile(session.access_token);
+  return {
+    session,
+    user: session.user || null,
+    linkedUser: profile.profile || null,
+    profileType: profile.type || "",
+  };
 }
 
 export async function signOutSupabaseAuth() {
@@ -213,11 +231,14 @@ export async function updateSupabasePassword(password) {
   if (error) throw new Error(formatSupabaseError(error, "Falha ao alterar senha."));
 }
 
-async function authHeaders() {
-  const client = await getSupabaseClient();
-  const { data, error } = await client.auth.getSession();
-  if (error) throw new Error(formatSupabaseError(error, "Falha ao validar sessao Supabase Auth."));
-  const token = data?.session?.access_token;
+async function authHeaders(accessToken = "") {
+  let token = accessToken;
+  if (!token) {
+    const client = await getSupabaseClient();
+    const { data, error } = await client.auth.getSession();
+    if (error) throw new Error(formatSupabaseError(error, "Falha ao validar sessao Supabase Auth."));
+    token = data?.session?.access_token;
+  }
   if (!token) throw new Error("Sessao Supabase Auth obrigatoria para esta operacao.");
   return {
     "Content-Type": "application/json",

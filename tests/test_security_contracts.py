@@ -76,7 +76,11 @@ def test_security_migration_removes_anonymous_critical_writes():
 def test_frontend_sends_authorization_to_sensitive_apis():
     repository = read("src/lib/bolaoRepository.js")
 
-    assert "async function authHeaders()" in repository
+    assert 'const accessToken = authData?.session?.access_token' in repository
+    assert "const profile = await loadAuthProfile(accessToken)" in repository
+    assert 'export async function loadAuthProfile(accessToken = "")' in repository
+    assert "async function authHeaders(accessToken = \"\")" in repository
+    assert "Authorization: `Bearer ${token}`" in repository
     for action in [
         '"savePredictions"',
         '"saveResults"',
@@ -179,7 +183,10 @@ def test_participant_session_normalizes_auth_profile_id_before_access_check():
     source = read("app.js")
 
     assert "participantId: normalizeParticipantId(participant.id_participante)" in source
-    assert "findParticipantById(participantes, currentUser.participantId)" in source
+    assert "async function checkSession()" in source
+    assert "const authContext = await getCurrentAuthContext()" in source
+    assert 'sessionStorage.removeItem("bolao-user")' in source
+    assert 'JSON.parse(sessionStorage.getItem("' not in source
     assert 'logParticipantAuthDebug("auth-profile-returned"' in source
     assert 'const authParticipant = profileType === "participant" ? linkedUser : null;' in source
     assert "setParticipantSession(authParticipant, authUser)" in source
@@ -202,3 +209,10 @@ def test_auth_profile_normalizes_and_logs_participant_access_fields():
         "accessBlocked",
     ]:
         assert field in source
+
+
+def test_supabase_client_persists_and_refreshes_auth_session():
+    source = read("src/lib/supabaseClient.js")
+
+    assert "persistSession: true" in source
+    assert "autoRefreshToken: true" in source

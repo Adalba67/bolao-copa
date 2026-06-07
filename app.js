@@ -1,6 +1,7 @@
 ﻿import {
   changeAdminPassword,
   completeParticipantPasswordChange,
+  getCurrentAuthContext,
   getCurrentCompany,
   loadSemifinalistsConference,
   loadBolaoData,
@@ -20,7 +21,6 @@
 } from "./src/lib/bolaoRepository.js";
 import { calculateFinalStagePoints, teamKey } from "./src/lib/finalStageRules.mjs";
 import {
-  findParticipantById,
   normalizeParticipantId,
   participantAccessBlocked,
   participantCanAccess,
@@ -444,16 +444,16 @@ function isAuthAdmin(record, email) {
 function setAdminSession(admin, authUser = null) {
   companyProfile = companyProfileFromAuthAdmin(admin || {});
   updateCompanyLabels();
-  sessionStorage.setItem("bolao-user", JSON.stringify({
+  currentUser = {
     role: "admin",
     adminRole: companyProfile.role === "super_admin" ? "super_admin" : "admin",
     name: companyProfile.name || "ADM",
     email: companyProfile.email || authUser?.email || "",
     authUserId: authUser?.id || "",
     auth: Boolean(authUser),
-  }));
+  };
   byId("loginError").textContent = "";
-  checkSession();
+  updateSessionView();
 }
 
 function setParticipantSession(participant, authUser = null) {
@@ -476,43 +476,19 @@ function setParticipantSession(participant, authUser = null) {
     logo_data_url: companyProfile?.logo_data_url || "",
   };
   updateCompanyLabels();
-  sessionStorage.setItem("bolao-user", JSON.stringify({
+  currentUser = {
     role: "participant",
     name: participantDisplayName(participant),
     email: participant.email || authUser?.email || "",
     participantId: normalizeParticipantId(participant.id_participante),
     authUserId: authUser?.id || "",
     auth: Boolean(authUser),
-  }));
+  };
   byId("loginError").textContent = "";
-  checkSession();
+  updateSessionView();
 }
 
-function checkSession() {
-  currentUser = JSON.parse(sessionStorage.getItem("bolao-user") || "null");
-  if (currentUser?.role === "participant") {
-    const participant = findParticipantById(participantes, currentUser.participantId);
-    logParticipantAuthDebug("check-session", {
-      sessionId: currentUser.participantId,
-      sessionIdType: typeof currentUser.participantId,
-      participantId: participant?.id_participante,
-      participantIdType: typeof participant?.id_participante,
-      participantFound: Boolean(participant),
-      ativo: participant?.ativo,
-      accessBlocked: participant?.access_blocked,
-      canAccess: participantCanAccess(participant),
-      loadedParticipantIds: participantes.map((item) => item.id_participante),
-    });
-    if (!participant) {
-      sessionStorage.removeItem("bolao-user");
-      currentUser = null;
-      byId("loginError").textContent = "Perfil de participante não encontrado. Entre novamente.";
-    } else if (!participantCanAccess(participant)) {
-      sessionStorage.removeItem("bolao-user");
-      currentUser = null;
-      byId("loginError").textContent = "Acesso bloqueado. Fale com o ADM.";
-    }
-  }
+function updateSessionView() {
   const logged = Boolean(currentUser);
   byId("loginView").classList.toggle("hidden", logged);
   byId("appView").classList.toggle("hidden", !logged);
@@ -546,6 +522,54 @@ function checkSession() {
   renderLineFinalPrediction();
   renderMyScore();
   updateMobileDashboardVisibility();
+}
+
+async function checkSession() {
+  sessionStorage.removeItem("bolao-user");
+  try {
+    const authContext = await getCurrentAuthContext();
+    if (!authContext) {
+      currentUser = null;
+      updateSessionView();
+      return false;
+    }
+
+    const { user: authUser, linkedUser, profileType } = authContext;
+    if (profileType === "participant" && linkedUser) {
+      logParticipantAuthDebug("check-session-auth-profile", {
+        profileId: linkedUser.id_participante,
+        profileIdType: typeof linkedUser.id_participante,
+        ativo: linkedUser.ativo,
+        accessBlocked: linkedUser.access_blocked,
+        canAccess: participantCanAccess(linkedUser),
+        companyId: linkedUser.company_id,
+      });
+      if (!participantCanAccess(linkedUser)) {
+        await signOutSupabaseAuth().catch(() => {});
+        currentUser = null;
+        byId("loginError").textContent = "Acesso bloqueado. Fale com o ADM.";
+        updateSessionView();
+        return false;
+      }
+      await reloadBolaoData(linkedUser.company_id || activeCompanyId());
+      setParticipantSession(linkedUser, authUser);
+      return true;
+    }
+
+    if (profileType === "admin" && linkedUser) {
+      setAdminSession(linkedUser, authUser);
+      await reloadBolaoData(companyProfile.id);
+      return true;
+    }
+
+    throw new Error("Perfil Auth nao reconhecido.");
+  } catch (error) {
+    await signOutSupabaseAuth().catch(() => {});
+    currentUser = null;
+    byId("loginError").textContent = "Sessão expirada ou inválida. Faça login novamente.";
+    updateSessionView();
+    return false;
+  }
 }
 
 async function setupAuth() {
@@ -692,7 +716,7 @@ async function setupAuth() {
     pendingPasswordParticipantId = null;
     byId("newParticipantPassword").value = "";
     byId("newParticipantPasswordConfirm").value = "";
-    checkSession();
+    await checkSession();
   });
 
   byId("registerForm").addEventListener("submit", async (event) => {
@@ -779,7 +803,7 @@ async function setupAuth() {
     await signOutSupabaseAuth().catch(() => {});
     await signOutAdmin().catch(() => {});
     sessionStorage.removeItem("bolao-user");
-    checkSession();
+    await checkSession();
     activateSection("dashboard");
   });
 
@@ -2174,7 +2198,7 @@ async function boot() {
   await setupAuth();
   setupNavigation();
   setupCompanyAdmin();
-  checkSession();
+  await checkSession();
   updateCompanyLabels();
   setupRankingFilters();
   renderDashboard();
