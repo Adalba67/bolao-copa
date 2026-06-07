@@ -7,10 +7,6 @@ const {
   supabaseFetch,
 } = require("../server/security");
 
-function normalizeEmail(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
 function first(rows) {
   return Array.isArray(rows) ? rows[0] : null;
 }
@@ -20,25 +16,9 @@ async function findAdmin(userId) {
 }
 
 async function findParticipantByAuth(userId) {
-  return first(await supabaseFetch(`/rest/v1/participantes?auth_user_id=eq.${encodeURIComponent(userId)}&select=*`));
-}
-
-async function findParticipantByEmail(email) {
-  if (!email) return null;
-  return first(await supabaseFetch(`/rest/v1/participantes?email=eq.${encodeURIComponent(email)}&select=*`));
-}
-
-async function linkParticipant(participant, user) {
-  if (participant.auth_user_id) return participant;
-  const rows = await supabaseFetch(
-    `/rest/v1/participantes?company_id=eq.${encodeURIComponent(participant.company_id)}&id_participante=eq.${encodeURIComponent(participant.id_participante)}&select=*`,
-    {
-      method: "PATCH",
-      headers: { Prefer: "return=representation" },
-      body: JSON.stringify({ auth_user_id: user.id, email: normalizeEmail(user.email) }),
-    }
-  );
-  return first(rows) || participant;
+  return first(await supabaseFetch(
+    `/rest/v1/participantes?auth_user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`
+  ));
 }
 
 function normalizeParticipantProfile(participant) {
@@ -75,39 +55,34 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    let participantSource = "auth_user_id";
-    let participant = await findParticipantByAuth(user.id);
-    if (!participant) {
-      participantSource = "email";
-      participant = await findParticipantByEmail(normalizeEmail(user.email));
-      if (participant) participant = await linkParticipant(participant, user);
-    }
+    const participantSource = "auth_user_id";
+    const participant = await findParticipantByAuth(user.id);
 
     if (!participant) {
       json(response, 403, { error: "Usuario Auth sem vinculo de ADM ou participante." });
       return;
     }
 
-    participant = normalizeParticipantProfile(participant);
+    const normalizedParticipant = normalizeParticipantProfile(participant);
     console.info("[auth-profile-debug]", {
       requestId,
       participantSource,
       authUserId: user.id,
-      participantId: participant.id_participante,
-      participantIdType: typeof participant.id_participante,
-      companyId: participant.company_id,
-      ativo: participant.ativo,
-      accessBlocked: participant.access_blocked,
+      participantId: normalizedParticipant.id_participante,
+      participantIdType: typeof normalizedParticipant.id_participante,
+      companyId: normalizedParticipant.company_id,
+      ativo: normalizedParticipant.ativo,
+      accessBlocked: normalizedParticipant.access_blocked,
     });
     await auditLog({
       actorUserId: user.id,
       actorRole: "participant",
-      companyId: participant.company_id,
-      participantId: participant.id_participante,
+      companyId: normalizedParticipant.company_id,
+      participantId: normalizedParticipant.id_participante,
       action: "participant_auth_profile_loaded",
       details: { requestId },
     });
-    json(response, 200, { ok: true, type: "participant", profile: participant });
+    json(response, 200, { ok: true, type: "participant", profile: normalizedParticipant });
   } catch (error) {
     json(response, statusFromError(error), { error: "Falha ao carregar perfil Auth.", details: error.message, requestId });
   }

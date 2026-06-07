@@ -181,13 +181,18 @@ def test_participant_session_normalizes_auth_profile_id_before_access_check():
     assert "participantId: normalizeParticipantId(participant.id_participante)" in source
     assert "findParticipantById(participantes, currentUser.participantId)" in source
     assert 'logParticipantAuthDebug("auth-profile-returned"' in source
-    assert 'logParticipantAuthDebug("company-participants-loaded"' in source
+    assert 'const authParticipant = profileType === "participant" ? linkedUser : null;' in source
+    assert "setParticipantSession(authParticipant, authUser)" in source
+    assert 'Perfil de participante não encontrado. Fale com o ADM.' not in source
 
 
 def test_auth_profile_normalizes_and_logs_participant_access_fields():
     source = read("api/auth-profile.js")
 
     assert "normalizeParticipantProfile(participant)" in source
+    assert "auth_user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1" in source
+    assert 'const participantSource = "auth_user_id"' in source
+    assert "findParticipantByEmail" not in source
     assert 'console.info("[auth-profile-debug]"' in source
     for field in [
         "participantId",

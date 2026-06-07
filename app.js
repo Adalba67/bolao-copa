@@ -601,8 +601,7 @@ async function setupAuth() {
           canAccess: participantCanAccess(linkedUser),
           companyId: linkedUser?.company_id,
         });
-        const authParticipant = participantFromAuth(linkedUser, normalizedUserEmail, { includeBlocked: true }) ||
-          (profileType === "participant" ? linkedUser : null);
+        const authParticipant = profileType === "participant" ? linkedUser : null;
         if (profileType === "participant" && authParticipant && !isAuthAdmin(linkedUser, normalizedUserEmail)) {
           if (!participantIsActive(authParticipant) || participantAccessBlocked(authParticipant)) {
             await signOutSupabaseAuth().catch(() => {});
@@ -618,23 +617,7 @@ async function setupAuth() {
             return;
           }
           await reloadBolaoData(authParticipant.company_id || activeCompanyId());
-          const loadedParticipant = participantFromAuth(linkedUser, normalizedUserEmail, { includeBlocked: true });
-          logParticipantAuthDebug("company-participants-loaded", {
-            authProfileId: linkedUser?.id_participante,
-            loadedParticipantId: loadedParticipant?.id_participante,
-            loadedParticipantIdType: typeof loadedParticipant?.id_participante,
-            loadedParticipantFound: Boolean(loadedParticipant),
-            ativo: loadedParticipant?.ativo,
-            accessBlocked: loadedParticipant?.access_blocked,
-            canAccess: participantCanAccess(loadedParticipant),
-            loadedParticipantIds: participantes.map((item) => item.id_participante),
-          });
-          if (!loadedParticipant) {
-            await signOutSupabaseAuth().catch(() => {});
-            byId("loginError").textContent = "Perfil de participante não encontrado. Fale com o ADM.";
-            return;
-          }
-          setParticipantSession(loadedParticipant, authUser);
+          setParticipantSession(authParticipant, authUser);
           return;
         }
         if (profileType === "admin" && isAuthAdmin(linkedUser, normalizedUserEmail)) {
