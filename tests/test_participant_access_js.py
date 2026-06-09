@@ -45,6 +45,20 @@ def test_active_unblocked_auth_profile_can_access():
     assert data["canAccess"] is True
 
 
+def test_participant_normalization_accepts_id_fallback():
+    data = run_access_check(
+        {
+            "id": 19,
+            "ativo": True,
+            "access_blocked": False,
+            "company_id": "prosperity",
+        }
+    )
+
+    assert data["normalized"]["id_participante"] == "19"
+    assert data["canAccess"] is True
+
+
 def test_participant_lookup_accepts_numeric_auth_id_and_string_loaded_id():
     data = run_access_check(
         None,

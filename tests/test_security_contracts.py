@@ -187,28 +187,32 @@ def test_participant_session_normalizes_auth_profile_id_before_access_check():
     assert "const authContext = await getCurrentAuthContext()" in source
     assert 'sessionStorage.removeItem("bolao-user")' in source
     assert 'JSON.parse(sessionStorage.getItem("' not in source
-    assert 'logParticipantAuthDebug("auth-profile-returned"' in source
     assert 'const authParticipant = profileType === "participant" ? linkedUser : null;' in source
     assert "setParticipantSession(authParticipant, authUser)" in source
     assert 'Perfil de participante não encontrado. Fale com o ADM.' not in source
 
 
-def test_auth_profile_normalizes_and_logs_participant_access_fields():
+def test_temporary_participant_diagnostic_logs_are_removed():
+    source = read("app.js")
+
+    for temporary_log in [
+        "[AUTH_PROFILE]",
+        "[COMPANY_PROFILE]",
+        "[SESSION_CHECK]",
+        "[participant-auth-debug]",
+    ]:
+        assert temporary_log not in source
+
+
+def test_auth_profile_normalizes_participant_access_fields_without_debug_logs():
     source = read("api/auth-profile.js")
 
     assert "normalizeParticipantProfile(participant)" in source
     assert "auth_user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1" in source
-    assert 'const participantSource = "auth_user_id"' in source
     assert "findParticipantByEmail" not in source
-    assert 'console.info("[auth-profile-debug]"' in source
-    for field in [
-        "participantId",
-        "participantIdType",
-        "companyId",
-        "ativo",
-        "accessBlocked",
-    ]:
-        assert field in source
+    assert "console.info" not in source
+    assert "id_participante: String(participant.id_participante)" in source
+    assert "access_blocked:" in source
 
 
 def test_supabase_client_persists_and_refreshes_auth_session():
@@ -216,3 +220,46 @@ def test_supabase_client_persists_and_refreshes_auth_session():
 
     assert "persistSession: true" in source
     assert "autoRefreshToken: true" in source
+
+
+def test_company_is_loaded_before_company_scoped_supabase_queries():
+    app_source = read("app.js")
+    repository_source = read("src/lib/bolaoRepository.js")
+
+    boot_source = app_source.split("async function boot()")[1]
+    assert boot_source.index("await syncCurrentCompany()") < boot_source.index(
+        "loadBolaoData(companyProfile.id)"
+    )
+    assert "id: admin.company_id || admin.id" in repository_source
+    assert 'requestedCompanyId === "undefined"' in repository_source
+    assert '.eq("company_id", activeCompanyId)' in repository_source
+
+
+def test_config_accepts_standard_supabase_env_aliases_without_debug_logs():
+    source = read("api/config.js")
+
+    for name in [
+        "SUPABASE_URL",
+        "SUPABASE_ANON_KEY",
+        "VITE_SUPABASE_URL",
+        "VITE_SUPABASE_ANON_KEY",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    ]:
+        assert name in source
+    assert "console.info" not in source
+    assert 'error: "Supabase nao configurado."' in source
+    assert "supabaseAnonKey: anonKey.value" in source
+    assert "supabaseUrl: url.value" in source
+
+
+def test_save_predictions_does_not_mask_supabase_write_failures():
+    source = read("server/legacy-api/save-predictions.js")
+
+    assert "/rest/v1/palpites?on_conflict" not in source
+    assert "/rest/v1/fase_final?on_conflict" not in source
+    assert "saveMatchPrediction" in source
+    assert "assertSavedRows" in source
+    assert 'log(requestId, "supabase_write_failed"' in source
+    assert "public.palpites: gravacao incompleta" in source
+    assert "public.fase_final: gravacao incompleta" in source

@@ -41,6 +41,7 @@ let currentGamesPage = 0;
 let pendingPasswordParticipantId = null;
 let companyProfile = null;
 let dashboardOpenedFromMenu = false;
+let bolaoDataLoading = true;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const byId = (id) => document.getElementById(id);
@@ -49,9 +50,6 @@ const setFeedback = (ids, message) => {
     const element = byId(id);
     if (element) element.textContent = message;
   });
-};
-const debugPredictions = (step, details = {}) => {
-  console.info("[predictions-debug]", step, details);
 };
 const GOOGLE_APPS_SCRIPT_WEBHOOK_URL = "";
 const DEFAULT_GOOGLE_SHEETS_SPREADSHEET_ID = "1wEG1rdXUuRC00YkRtuQeuOEPeZYyijFu8Sj_nHu2SXQ";
@@ -337,25 +335,30 @@ async function syncCurrentCompany() {
 }
 
 async function reloadBolaoData(companyId = "") {
-  const data = await loadBolaoData(companyId);
-  jogos = data.jogos;
-  selecoes = data.selecoes;
-  participantes = data.participantes;
-  palpites = data.palpites;
-  faseFinal = data.faseFinal;
-  resultadoFinal = data.resultadoFinal;
-  hydrateOfficialResults();
-  populateParticipantForms();
-  renderDashboard();
-  renderGames();
-  renderPredictionFilters();
-  renderPredictions();
-  renderManualGames();
-  renderFinalPredictionOptions();
-  renderLinePredictionGames();
-  renderParticipantsSheet();
-  renderRanking();
-  renderMyScore();
+  bolaoDataLoading = true;
+  try {
+    const data = await loadBolaoData(companyId);
+    jogos = data.jogos;
+    selecoes = data.selecoes;
+    participantes = data.participantes;
+    palpites = data.palpites;
+    faseFinal = data.faseFinal;
+    resultadoFinal = data.resultadoFinal;
+    hydrateOfficialResults();
+    populateParticipantForms();
+    renderDashboard();
+    renderGames();
+    renderPredictionFilters();
+    renderPredictions();
+    renderManualGames();
+    renderFinalPredictionOptions();
+    renderLinePredictionGames();
+    renderParticipantsSheet();
+    renderRanking();
+    renderMyScore();
+  } finally {
+    bolaoDataLoading = false;
+  }
 }
 
 function companyDisplayName() {
@@ -423,10 +426,6 @@ function authRole(record) {
   return String(record?.role || record?.user_type || record?.profile_type || record?.type || "").toLowerCase();
 }
 
-function logParticipantAuthDebug(step, details = {}) {
-  console.info("[participant-auth-debug]", step, details);
-}
-
 function participantFromAuth(record, email, options = {}) {
   const participantId = record?.id_participante || record?.participant_id;
   return participantes.find((item) =>
@@ -457,14 +456,6 @@ function setAdminSession(admin, authUser = null) {
 }
 
 function setParticipantSession(participant, authUser = null) {
-  logParticipantAuthDebug("set-session", {
-    profileId: participant?.id_participante,
-    profileIdType: typeof participant?.id_participante,
-    ativo: participant?.ativo,
-    accessBlocked: participant?.access_blocked,
-    canAccess: participantCanAccess(participant),
-    companyId: participant?.company_id,
-  });
   if (!participantCanAccess(participant)) {
     byId("loginError").textContent = "Acesso bloqueado. Fale com o ADM.";
     return;
@@ -536,14 +527,6 @@ async function checkSession() {
 
     const { user: authUser, linkedUser, profileType } = authContext;
     if (profileType === "participant" && linkedUser) {
-      logParticipantAuthDebug("check-session-auth-profile", {
-        profileId: linkedUser.id_participante,
-        profileIdType: typeof linkedUser.id_participante,
-        ativo: linkedUser.ativo,
-        accessBlocked: linkedUser.access_blocked,
-        canAccess: participantCanAccess(linkedUser),
-        companyId: linkedUser.company_id,
-      });
       if (!participantCanAccess(linkedUser)) {
         await signOutSupabaseAuth().catch(() => {});
         currentUser = null;
@@ -616,15 +599,6 @@ async function setupAuth() {
     if (isValidEmail(user)) {
       try {
         const { user: authUser, linkedUser, profileType } = await signInWithAuth(normalizedUserEmail, password);
-        logParticipantAuthDebug("auth-profile-returned", {
-          profileType,
-          profileId: linkedUser?.id_participante,
-          profileIdType: typeof linkedUser?.id_participante,
-          ativo: linkedUser?.ativo,
-          accessBlocked: linkedUser?.access_blocked,
-          canAccess: participantCanAccess(linkedUser),
-          companyId: linkedUser?.company_id,
-        });
         const authParticipant = profileType === "participant" ? linkedUser : null;
         if (profileType === "participant" && authParticipant && !isAuthAdmin(linkedUser, normalizedUserEmail)) {
           if (!participantIsActive(authParticipant) || participantAccessBlocked(authParticipant)) {
@@ -1601,9 +1575,25 @@ function participantHasPredictions(participantId) {
 
 function participantForNewPrediction(nameInputId, feedbackId) {
   const sessionParticipantId = activeParticipantId();
+  const activeCompany = activeCompanyId();
+  const participantDataPending =
+    bolaoDataLoading ||
+    !companyProfile?.id ||
+    activeCompany === "sem-empresa" ||
+    (currentUser?.role === "participant" &&
+      (!sessionParticipantId || participantes.length === 0));
+  if (participantDataPending) {
+    setFeedback(
+      [feedbackId, "linePredictionsFeedbackTop"],
+      "Carregando dados do participante..."
+    );
+    return null;
+  }
+
   if (sessionParticipantId) {
     const participant = participantes.find((item) =>
-      item.id_participante === sessionParticipantId && item.company_id === activeCompanyId()
+      String(item.id_participante) === String(sessionParticipantId) &&
+      String(item.company_id) === String(activeCompany)
     );
     if (!participant) {
       setFeedback([feedbackId, "linePredictionsFeedbackTop"], "Sessão do participante desatualizada. Saia e entre novamente.");
@@ -1687,35 +1677,9 @@ function hasRepeatedFinalTeams(finalPrediction) {
 }
 
 async function savePredictionSet(participant, matchPredictions, finalPrediction) {
-  debugPredictions("saving_payload", {
-    currentUser,
-    participant: {
-      id_participante: participant.id_participante,
-      company_id: participant.company_id,
-      email: participant.email || "",
-    },
-    activeCompanyId: activeCompanyId(),
-    matches: matchPredictions.map((prediction) => ({
-      id_jogo: prediction.id_jogo,
-      palpite_casa: prediction.palpite_casa,
-      palpite_fora: prediction.palpite_fora,
-      company_id: prediction.company_id,
-      id_participante: prediction.id_participante,
-    })),
-    finalPrediction,
-  });
   const saved = await persistPredictions(matchPredictions, finalPrediction);
   const savedMatchPredictions = saved?.matchPredictions?.length ? saved.matchPredictions : matchPredictions;
   const savedFinalPrediction = saved?.finalPrediction || finalPrediction;
-  debugPredictions("save_response", {
-    savedMatches: savedMatchPredictions.map((prediction) => ({
-      id_palpite: prediction.id_palpite,
-      id_jogo: prediction.id_jogo,
-      id_participante: prediction.id_participante,
-      company_id: prediction.company_id,
-    })),
-    savedFinalPrediction,
-  });
   palpites = palpites.filter((prediction) => !savedMatchPredictions.some((item) =>
     item.id_participante === prediction.id_participante && item.id_jogo === prediction.id_jogo
   ));
@@ -1753,19 +1717,6 @@ async function addLinePredictions() {
   }
   if (!validateMatchPredictionInputs("linePred", "linePredictionsFeedback")) return;
   const matchPredictions = buildMatchPredictions(participant, "linePred");
-  debugPredictions("inputs_collected", {
-    loggedParticipantId: activeParticipantId(),
-    selectedParticipantId: participant.id_participante,
-    activeCompanyId: activeCompanyId(),
-    currentPage: currentPredictionPage + 1,
-    games: currentPageGames().map((game) => ({
-      id_jogo: game.id_jogo,
-      editable: canEditGamePrediction(game),
-      homeValue: byId(`linePredHome-${game.id_jogo}`)?.value || "",
-      awayValue: byId(`linePredAway-${game.id_jogo}`)?.value || "",
-    })),
-    matchPredictionCount: matchPredictions.length,
-  });
   if (!matchPredictions.length) {
     const pageHasOpenGames = currentPageGames().some(canEditGamePrediction);
     setFeedback(
@@ -2050,23 +2001,12 @@ function setupParticipantPasswordReset() {
       }
       try {
         byId("participantsSheetFeedback").textContent = "Salvando e vinculando usuario no Supabase Auth...";
-        console.info("[participants] salvar email", {
-          participantId,
-          companyId: participant.company_id || activeCompanyId(),
-          email,
-        });
         const data = await syncParticipantAuthUser({
           companyId: participant.company_id || activeCompanyId(),
           participantId,
           email,
         });
         Object.assign(participant, data.participant || { email, auth_user_id: data.auth_user_id });
-        console.info("[participants] email salvo e auth vinculado", {
-          participantId,
-          email,
-          created: data.created,
-          authUserId: data.auth_user_id,
-        });
         byId("participantsSheetFeedback").textContent = data.created
           ? "E-mail salvo e usuario criado no Supabase Auth. O participante ja pode usar Esqueci minha senha para definir a senha."
           : "E-mail salvo e usuario vinculado no Supabase Auth.";
@@ -2183,49 +2123,52 @@ function populateParticipantForms() {
 }
 
 async function boot() {
-  const data = await loadBolaoData();
-  jogos = data.jogos;
-  selecoes = data.selecoes;
-  participantes = data.participantes;
-  palpites = data.palpites;
-  faseFinal = data.faseFinal;
-  resultadoFinal = data.resultadoFinal;
-  hydrateOfficialResults();
+  try {
+    await syncCurrentCompany();
+    const data = await loadBolaoData(companyProfile.id);
+    jogos = data.jogos;
+    selecoes = data.selecoes;
+    participantes = data.participantes;
+    palpites = data.palpites;
+    faseFinal = data.faseFinal;
+    resultadoFinal = data.resultadoFinal;
+    hydrateOfficialResults();
 
-  loadCompanyProfile();
-  await syncCurrentCompany();
-  mergeStoredData();
-  await setupAuth();
-  setupNavigation();
-  setupCompanyAdmin();
-  await checkSession();
-  updateCompanyLabels();
-  setupRankingFilters();
-  renderDashboard();
-  renderGroupFilter();
-  renderGames();
-  renderPredictionFilters();
-  renderPredictions();
-  renderManualGames();
-  renderFinalPredictionOptions();
-  renderLinePredictionGames();
-  renderParticipantsSheet();
-  renderRanking();
-  populateParticipantForms();
-  setupPredictionModeLock();
-  setupPredictionPager();
-  setupLineParticipantSelection();
-  setupGamesPager();
-  setupPredictionFilters();
-  setupParticipantPasswordReset();
-  setupResultImportSettings();
-  byId("simulateButton").addEventListener("click", simulate);
-  byId("manualCalculateButton").addEventListener("click", applyManualResults);
-  byId("fetchBallResultsButton").addEventListener("click", fetchBallDontLieResults);
-  byId("refreshSemifinalistsButton")?.addEventListener("click", renderSemifinalistsConference);
-  byId("linePredictionsButton").addEventListener("click", addLinePredictions);
-  byId("linePredictionsButtonBottom").addEventListener("click", addLinePredictions);
-  fetchBallResultsWhenCupStarts();
+    mergeStoredData();
+    await setupAuth();
+    setupNavigation();
+    setupCompanyAdmin();
+    await checkSession();
+    updateCompanyLabels();
+    setupRankingFilters();
+    renderDashboard();
+    renderGroupFilter();
+    renderGames();
+    renderPredictionFilters();
+    renderPredictions();
+    renderManualGames();
+    renderFinalPredictionOptions();
+    renderLinePredictionGames();
+    renderParticipantsSheet();
+    renderRanking();
+    populateParticipantForms();
+    setupPredictionModeLock();
+    setupPredictionPager();
+    setupLineParticipantSelection();
+    setupGamesPager();
+    setupPredictionFilters();
+    setupParticipantPasswordReset();
+    setupResultImportSettings();
+    byId("simulateButton").addEventListener("click", simulate);
+    byId("manualCalculateButton").addEventListener("click", applyManualResults);
+    byId("fetchBallResultsButton").addEventListener("click", fetchBallDontLieResults);
+    byId("refreshSemifinalistsButton")?.addEventListener("click", renderSemifinalistsConference);
+    byId("linePredictionsButton").addEventListener("click", addLinePredictions);
+    byId("linePredictionsButtonBottom").addEventListener("click", addLinePredictions);
+    fetchBallResultsWhenCupStarts();
+  } finally {
+    bolaoDataLoading = false;
+  }
 }
 
 boot().catch((error) => {

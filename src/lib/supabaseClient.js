@@ -24,7 +24,7 @@ export async function getSupabaseClient() {
 
   const config = await loadConfig();
   if (!config.url || !config.anonKey) {
-    throw new Error("Supabase nao configurado. Defina SUPABASE_URL e SUPABASE_ANON_KEY na Vercel.");
+    throw new Error("Supabase nao configurado. Defina SUPABASE_URL/SUPABASE_ANON_KEY ou os aliases VITE_/NEXT_PUBLIC_ na Vercel.");
   }
 
   supabase = createClient(config.url, config.anonKey, {

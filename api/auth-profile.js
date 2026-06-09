@@ -55,7 +55,6 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    const participantSource = "auth_user_id";
     const participant = await findParticipantByAuth(user.id);
 
     if (!participant) {
@@ -64,16 +63,6 @@ module.exports = async function handler(request, response) {
     }
 
     const normalizedParticipant = normalizeParticipantProfile(participant);
-    console.info("[auth-profile-debug]", {
-      requestId,
-      participantSource,
-      authUserId: user.id,
-      participantId: normalizedParticipant.id_participante,
-      participantIdType: typeof normalizedParticipant.id_participante,
-      companyId: normalizedParticipant.company_id,
-      ativo: normalizedParticipant.ativo,
-      accessBlocked: normalizedParticipant.access_blocked,
-    });
     await auditLog({
       actorUserId: user.id,
       actorRole: "participant",

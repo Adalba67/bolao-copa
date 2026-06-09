@@ -67,20 +67,73 @@ async function getGames(gameIds) {
   return supabaseFetch(`/rest/v1/jogos?id_jogo=in.(${ids.join(",")})&select=id_jogo,data_hora,time_casa,time_fora`);
 }
 
-async function upsertMatchPredictions(predictions) {
-  return supabaseFetch("/rest/v1/palpites?on_conflict=company_id,id_participante,id_jogo&select=*", {
-    method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates,return=representation" },
-    body: JSON.stringify(predictions),
+function predictionKey(prediction) {
+  return `company_id=eq.${encodeURIComponent(prediction.company_id)}` +
+    `&id_participante=eq.${encodeURIComponent(prediction.id_participante)}` +
+    `&id_jogo=eq.${encodeURIComponent(prediction.id_jogo)}`;
+}
+
+function finalPredictionKey(prediction) {
+  return `company_id=eq.${encodeURIComponent(prediction.company_id)}` +
+    `&id_participante=eq.${encodeURIComponent(prediction.id_participante)}`;
+}
+
+function assertSavedRows(rows, expectedCount, label) {
+  if (!Array.isArray(rows) || rows.length !== expectedCount) {
+    const error = new Error(`${label}: Supabase retornou ${Array.isArray(rows) ? rows.length : "valor invalido"} registro(s), esperado ${expectedCount}.`);
+    error.statusCode = 500;
+    throw error;
+  }
+  return rows;
+}
+
+async function updateRows(path, payload) {
+  return supabaseFetch(path, {
+    method: "PATCH",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify(payload),
   });
 }
 
-async function upsertFinalPrediction(prediction) {
-  return supabaseFetch("/rest/v1/fase_final?on_conflict=company_id,id_participante&select=*", {
+async function insertRows(path, payload) {
+  return supabaseFetch(path, {
     method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates,return=representation" },
-    body: JSON.stringify(prediction),
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify(payload),
   });
+}
+
+async function saveMatchPrediction(prediction) {
+  const key = predictionKey(prediction);
+  const updated = await updateRows(`/rest/v1/palpites?${key}&select=*`, prediction);
+  if (Array.isArray(updated) && updated.length === 1) return updated[0];
+  if (Array.isArray(updated) && updated.length > 1) {
+    const error = new Error(`public.palpites: update afetou ${updated.length} registros para jogo ${prediction.id_jogo}.`);
+    error.statusCode = 500;
+    throw error;
+  }
+  const inserted = await insertRows("/rest/v1/palpites?select=*", prediction);
+  return assertSavedRows(inserted, 1, "public.palpites insert")[0];
+}
+
+async function upsertMatchPredictions(predictions) {
+  const saved = [];
+  for (const prediction of predictions) {
+    saved.push(await saveMatchPrediction(prediction));
+  }
+  return assertSavedRows(saved, predictions.length, "public.palpites save");
+}
+
+async function upsertFinalPrediction(prediction) {
+  const key = finalPredictionKey(prediction);
+  const updated = await updateRows(`/rest/v1/fase_final?${key}&select=*`, prediction);
+  if (Array.isArray(updated) && updated.length === 1) return updated;
+  if (Array.isArray(updated) && updated.length > 1) {
+    const error = new Error(`public.fase_final: update afetou ${updated.length} registros.`);
+    error.statusCode = 500;
+    throw error;
+  }
+  return assertSavedRows(await insertRows("/rest/v1/fase_final?select=*", prediction), 1, "public.fase_final insert");
 }
 
 module.exports = async function handler(request, response) {
@@ -177,8 +230,32 @@ module.exports = async function handler(request, response) {
         palpite_fora: prediction.palpite_fora,
       })),
     });
-    const savedMatchPredictions = await upsertMatchPredictions(matchPayload);
-    const savedFinalPredictions = await upsertFinalPrediction(finalPayload);
+    let savedMatchPredictions;
+    let savedFinalPredictions;
+    try {
+      savedMatchPredictions = await upsertMatchPredictions(matchPayload);
+      savedFinalPredictions = await upsertFinalPrediction(finalPayload);
+    } catch (error) {
+      log(requestId, "supabase_write_failed", {
+        message: error.message,
+        statusCode: error.statusCode || null,
+        companyId,
+        participantId,
+        matchPredictionCount: matchPayload.length,
+        targetTables: ["public.palpites", "public.fase_final"],
+      });
+      throw error;
+    }
+    if (!Array.isArray(savedMatchPredictions) || savedMatchPredictions.length !== matchPayload.length) {
+      const error = new Error(`public.palpites: gravacao incompleta (${Array.isArray(savedMatchPredictions) ? savedMatchPredictions.length : 0}/${matchPayload.length}).`);
+      error.statusCode = 500;
+      throw error;
+    }
+    if (!Array.isArray(savedFinalPredictions) || savedFinalPredictions.length !== 1) {
+      const error = new Error("public.fase_final: gravacao incompleta.");
+      error.statusCode = 500;
+      throw error;
+    }
     await auditLog({
       actorUserId: user.id,
       actorRole: "participant",

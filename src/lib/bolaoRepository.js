@@ -72,7 +72,7 @@ function finalPredictionPayload(prediction) {
 
 function normalizeCompany(admin) {
   return {
-    id: admin.company_id,
+    id: admin.company_id || admin.id,
     name_type: admin.name_type,
     name: admin.name,
     email: admin.email,
@@ -96,14 +96,22 @@ export async function getCurrentCompany(companyId = "") {
 }
 
 export async function loadBolaoData(companyId = "") {
+  const requestedCompanyId = asString(companyId).trim();
+  if (!requestedCompanyId || requestedCompanyId === "undefined") {
+    throw new Error("Carregando empresa...");
+  }
   const client = await getSupabaseClient();
-  const company = await getCurrentCompany(companyId);
+  const company = await getCurrentCompany(requestedCompanyId);
+  const activeCompanyId = asString(company?.id).trim();
+  if (!activeCompanyId || activeCompanyId === "undefined") {
+    throw new Error("Carregando empresa...");
+  }
   const [games, teams, participants, predictions, finalPredictions, finalResult] = await Promise.all([
     client.from("jogos").select("*").order("id_jogo"),
     client.from("selecoes").select("*").order("grupo").order("posicao"),
-    client.from("participantes").select("*").eq("company_id", company.id).order("id_participante"),
-    client.from("palpites").select("*").eq("company_id", company.id).order("id_jogo"),
-    client.from("fase_final").select("*").eq("company_id", company.id).order("id_participante"),
+    client.from("participantes").select("*").eq("company_id", activeCompanyId).order("id_participante"),
+    client.from("palpites").select("*").eq("company_id", activeCompanyId).order("id_jogo"),
+    client.from("fase_final").select("*").eq("company_id", activeCompanyId).order("id_participante"),
     client.from("resultado_final").select("*").order("id", { ascending: false }).limit(1),
   ]);
 
@@ -247,20 +255,12 @@ async function authHeaders(accessToken = "") {
 }
 
 export async function syncParticipantAuthUser({ companyId, participantId, email }) {
-  console.info("[syncParticipantAuthUser] chamando endpoint", { companyId, participantId, email });
   const response = await fetch("/api/admin", {
     method: "POST",
     headers: await authHeaders(),
     body: JSON.stringify({ action: "syncParticipantAuthUser", companyId, participantId, email }),
   });
   const data = await response.json().catch(() => ({}));
-  console.info("[syncParticipantAuthUser] resposta do endpoint", {
-    status: response.status,
-    ok: response.ok,
-    created: data.created,
-    authUserId: data.auth_user_id,
-    requestId: data.requestId,
-  });
   if (!response.ok) {
     throw new Error(data.details ? `${data.error} ${data.details}` : data.error || "Falha ao sincronizar usuario Auth.");
   }
@@ -352,13 +352,6 @@ export async function savePredictionSetToSupabase(matchPredictions, finalPredict
     body: JSON.stringify({ action: "savePredictions", matchPredictions, finalPrediction }),
   });
   const data = await response.json().catch(() => ({}));
-  console.info("[savePredictionSetToSupabase] resposta do endpoint", {
-    status: response.status,
-    ok: response.ok,
-    savedMatches: Array.isArray(data.matchPredictions) ? data.matchPredictions.length : 0,
-    hasFinalPrediction: Boolean(data.finalPrediction),
-    requestId: data.requestId,
-  });
   if (!response.ok) {
     throw new Error(data.details ? `${data.error} ${data.details}` : data.error || "Falha ao salvar palpites.");
   }

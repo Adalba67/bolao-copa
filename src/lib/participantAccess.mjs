@@ -16,9 +16,10 @@ export function participantCanAccess(participant) {
 
 export function normalizeParticipantAccessRecord(participant) {
   if (!participant) return null;
+  const participantId = participant.id_participante ?? participant.id;
   return {
     ...participant,
-    id_participante: normalizeParticipantId(participant.id_participante),
+    id_participante: normalizeParticipantId(participantId),
     ativo: participantIsActive(participant) ? "True" : "False",
     access_blocked: participantAccessBlocked(participant),
   };
