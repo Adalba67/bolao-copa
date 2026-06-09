@@ -235,6 +235,16 @@ def test_company_is_loaded_before_company_scoped_supabase_queries():
     assert '.eq("company_id", activeCompanyId)' in repository_source
 
 
+def test_admin_profile_name_change_preserves_company_id():
+    app_source = read("app.js")
+    handler_source = read("server/legacy-api/save-admin-profile.js")
+
+    assert "id: previousId" in app_source
+    assert "id: slugify(name)" not in app_source
+    assert "requestedCompanyId !== admin.company_id" in handler_source
+    assert "O company_id nao pode ser alterado pelo cadastro ADM." in handler_source
+
+
 def test_config_accepts_standard_supabase_env_aliases_without_debug_logs():
     source = read("api/config.js")
 

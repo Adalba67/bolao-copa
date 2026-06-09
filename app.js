@@ -890,7 +890,7 @@ function setupCompanyAdmin() {
 
     const previousId = activeCompanyId();
     companyProfile = {
-      id: slugify(name),
+      id: previousId,
       name_type: byId("companyNameType").value,
       name,
       sheet_name: companyProfile?.sheet_name || name,

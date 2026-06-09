@@ -38,8 +38,8 @@ module.exports = async function handler(request, response) {
       json(response, 400, { error: "Nome, e-mail e company_id sao obrigatorios." });
       return;
     }
-    if (!admin.is_super_admin && requestedCompanyId !== admin.company_id) {
-      json(response, 403, { error: "ADMIN CLIENTE nao pode alterar company_id." });
+    if (requestedCompanyId !== admin.company_id) {
+      json(response, 403, { error: "O company_id nao pode ser alterado pelo cadastro ADM." });
       return;
     }
 
